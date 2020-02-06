@@ -1,0 +1,6 @@
+<program language="IPPcode20">
+  <instruction order="1" opcode="JUMP">
+    <arg1 type="label">nazev</arg1>
+  </instruction>
+
+</program>
