@@ -26,19 +26,23 @@ interface IProgramSerializer
 class Main
 {
     public function __construct() {
-        $reader = new StdinInputReader();
-        $instParser = new InstructionParser($reader);
-        $inputParser = new InputParser($instParser);
+        $this->reader = new StdinInputReader();
+        $this->instParser = new InstructionParser($this->reader);
+        $this->inputParser = new InputParser($this->instParser);
+        $this->serializer = new XmlProgramSerializer();
+    }
 
-        $serializer = new XmlProgramSerializer();
-        
-        $inputHeader = $reader->readNextLine();
+    public function begin() {
+        $inputHeader = $this->reader->readNextLine();
         if ($this->isHeaderValid($inputHeader) == false) {
             return 21;
         }
-        $program = $inputParser->parse();
-        $serializer->serialize($program);
-
+        $parseResult = $this->inputParser->parse();
+        if (is_numeric($parseResult)) {
+            return $parseResult; 
+        }
+        $this->serializer->serialize($parseResult);
+        return 0;
     }
 
     private function isHeaderValid($header) {
@@ -49,8 +53,11 @@ class Main
 class StdinInputReader implements IInputReader 
 {
     public function readNextLine() {
-        return "MOVE GF@counter string@";
+        #return "MOVE GF@counter string@";
+        $line = fgets(STDIN);
+        return $line;
     }
+
 }
 
 class InstructionParser implements IInstructionParser
@@ -60,15 +67,47 @@ class InstructionParser implements IInstructionParser
 
 
     private $expectedOperandsList = array(
-        "MOVE" => array(ArgType::VAR, ArgType::VAR),
+        "MOVE" => array(ArgType::VAR, ArgType::SYMB),
         "CREATEFRAME" => array(),
         "PUSHFRAME" => array(),
         "POPFRAME" => array(),
         "DEFVAR" => array(ArgType::VAR),
         "CALL" => array(ArgType::LABEL),
         "RETURN" => array(),
-        "PUSHS" => array(ArgType::VAR),
+
+        "PUSHS" => array(ArgType::SYMB),
         "POPS" => array(ArgType::VAR),
+
+        "ADD" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "SUB" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "MUL" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "IDIV" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "LT" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "GT" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "EQ" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "AND" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "OR" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "NOT" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "INT2CHAR" => array(ArgType::VAR, ArgType::SYMB),
+        "STRI2INT" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        
+        "READ" => array(ArgType::VAR, ArgType::TYPE),
+        "WRITE" => array(ArgType::SYMB),
+
+        "CONCAT" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "STRLEN" => array(ArgType::VAR, ArgType::SYMB),
+        "GETCHAR" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "SETCHAR" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "TYPE" => array(ArgType::VAR, ArgType::SYMB),
+
+        "LABEL" => array(ArgType::LABEL),
+        "JUMP" => array(ArgType::LABEL),
+        "JUMPIFEQ" => array(ArgType::LABEL, ArgType::SYMB, ArgType::SYMB),
+        "JUMPIFNEQ" => array(ArgType::LABEL, ArgType::SYMB, ArgType::SYMB),
+        "EXIT" => array(ArgType::SYMB),
+
+        "DPRINT" => array(ArgType::SYMB),
+        "BREAK" => array(),
     );
 
     public function __construct($reader) {
@@ -77,41 +116,91 @@ class InstructionParser implements IInstructionParser
 
     public function getNextInstruction() {
         // read line and reformat
-        $line = $this->reader->readNextLine();
-        $parts = explode(" ", $line);
-
-        if (count($parts) <= 0) {
-            return; // todo, error code
-        }  
+        $parts = $this->readNextNonEmptyLine();
+        if ($parts === NULL) {
+            return NULL;
+        }
         $parts[0] = strtoupper($parts[0]);
-
+        
         // todo, exists such opcode?
+        if (array_key_exists($parts[0], $this->expectedOperandsList) == false) {
+            error_log("Invalid instruction: *" . $parts[0]."*");
+            return 22;
+        }
         $expectedOperands = $this->expectedOperandsList[$parts[0]];
         if ($this->actualEqualsExpected($parts, $expectedOperands) == false) {
-            return; // todo, error code
+            error_log("Expected operands don't match given.");
+            return 23;
         }
-        $this->createInstruction($parts);
+        return $this->createInstruction($parts, $expectedOperands);
     }
 
-    private function createInstruction($parts) {
-        $opcode = $parts[0];
-        $args = $this->parseArgs($parts);
-
-        $inst = new Instruction($opcode, $args);
-    }
-
-    private function parseArgs($parts) {
+    private function readNextNonEmptyLine() {
+        do {
+            $line = $this->reader->readNextLine();
+            if (!$line) {
+                return NULL;
+            }
+            
+            $line = trim($line); // get rid of white spaces
+            $line = explode("#", $line)[0]; // get rid of comments
+            $parts = explode(" ", $line);
+            $parts = array_filter($parts, function($s) {
+                return $s !== "";
+            });
+        } while(count($parts) == 0);
         
+        print_r($parts);
+        return $parts;
+    }
+
+    private function createInstruction($parts, $expectedOperands) {
+        $opcode = $parts[0];
+        $args = $this->parseArgs($parts, $expectedOperands);
+        
+        $inst = new Instruction($opcode, $args);
+        return $inst;
+    }
+
+    private function parseArgs($parts, $operandTypes) {
+        $args = array();
+        for ($i = 0; $i < count($operandTypes); $i++) {
+            $operandType = $operandTypes[$i];
+            $operand = $parts[$i + 1];
+
+            switch ($operandType) {
+                case ArgType::INT:
+                case ArgType::BOOL:
+                case ArgType::STRING: {
+                    $content = explode("@", $operand)[1];
+                } break;
+                case ArgType::TYPE:
+                case ArgType::VAR: {
+                    $operandParts = explode("@", $operand);
+                    $content = strtoupper($operandParts[0]) . "@" . $operandParts[1];
+                } break;
+                case ArgType::LABEL:
+                case ArgType::NIL: {
+                    $content = $operand;
+                } break;
+                case ArgType::SYMB: {
+                    $content = $operand; // todo
+                } break;
+            }
+            $arg = new Arg($operandType, $content);
+            array_push($args, $arg);
+        }
+        return $args;
     }
 
     private function actualEqualsExpected($actualLineParts, $expectedOperands) {
         if (count($actualLineParts) - 1 != count($expectedOperands)) {
-            error_log("Wrong number of operands for instruction: " + $actualLineParts[0]);
+            error_log("Wrong number of operands for instruction: " . $actualLineParts[0]);
             return false; // todo, error code
         }
 
-        for ($i = 1; $i <= count($actualLineParts); $i++) {
-            $isValid = ArgType::isArgValid($expectedOperands[$i - 1], $actualLineParts[$i]);
+        for ($i = 0; $i < count($expectedOperands); $i++) {
+            $isValid = ArgType::isArgValid($expectedOperands[$i], $actualLineParts[$i + 1]);
             if ($isValid == false) {
                 return false; // todo, error code
             }
@@ -129,36 +218,94 @@ class InputParser implements IInputParser
     }
 
     public function parse() {
-        return new Program();
+        $program = new Program("IPPcode20");
+
+        $instr = $this->instParser->getNextInstruction();
+
+        while ($instr instanceof Instruction) {
+            $program->appendInstruction($instr);
+            $instr = $this->instParser->getNextInstruction();
+        }
+
+        // is error code?
+        if (is_numeric($instr)) { 
+            return $instr;
+        }
+
+        return $program;
     }
 }
 
 class Program
 {
-    private $instructions, $language;
+    private $instructions = array(), $language;
+
+    public function __construct($language) {
+        $this->language = $language;
+    }
+
+    public function appendInstruction($instruction) {
+        array_push($this->instructions, $instruction);
+    }
+
+    public function getLanguage() {
+        return $this->language;
+    }
+
+    public function getInstructions() {
+        return $this->instructions;
+    }
 }
 
 class Instruction
 {
-    private $args, $opcode;
+    private $opcode, $args;
+
+    public function __construct($opcode, $args) {
+        $this->opcode = $opcode;
+        $this->args = $args;
+    }
+
+    public function getOpcode() {
+        return $this->opcode;
+    }
+
+    public function getArgs() {
+        return $this->args;
+    }
 }
 
 class Arg
 {
     private $type, $content;
+
+    public function __construct($type, $content) {
+        $this->type = $type;
+        $this->content = $content;
+    }
+
+    public function getType() {
+        return $this->type;
+    }
+
+    public function getContent() {
+        return $this->content;
+    }
 }
 
 class ArgType
 {
-    public static const INT = "int";
-    public static const BOOL = "bool"; // string, nil, label, type, var
-    public static const STRING = "string";
-    public static const NIL = "nil";
-    public static const LABEL = "label";
-    public static const TYPE = "type";
-    public static const VAR = "var";
+    const INT = "int";
+    const BOOL = "bool";
+    const STRING = "string";
+    const NIL = "nil";
+    const LABEL = "label";
+    const TYPE = "type";
+    const VAR = "var";
+    const SYMB = "symb";
 
     public static function isArgValid($expectedArgType, $arg) {
+        
         return true; // todo
     }
 }
@@ -166,11 +313,66 @@ class ArgType
 class XmlProgramSerializer implements IProgramSerializer
 {
     public function serialize($program) {
-        echo "program serialization";
+        $dom = $this->createNew();
+        // create Program element
+        $root = $dom->createElement("program");
+        $language = new DOMAttr("language", $program->getLanguage());
+        $root->setAttributeNode($language);
+ 
+        // create Instruction elements
+        $instructions = $program->getInstructions();
+        for ($i = 1; $i <= count($instructions); $i++) {
+            $instr = $instructions[$i - 1];
+            $instrElement = $this->createInstruction($dom, $instr, $i);
+            $root->appendChild($instrElement);
+        }
+        $dom->appendChild($root);
+
+        $xml_string = $dom->saveXML();
+        echo $xml_string;
+    }
+
+    private function createNew() {
+        $dom = new DOMDocument();
+		$dom->encoding = 'UTF-8';
+		$dom->xmlVersion = '1.0';
+        $dom->formatOutput = true;
+        return $dom;
+    }
+
+    private function createInstruction($dom, $instr, $index) {
+        $instrElement = $dom->createElement('instruction');
+        $order = new DOMAttr("order", $index);
+        $opcode = new DOMAttr("opcode", $instr->getOpcode());
+        $instrElement->setAttributeNode($order);
+        $instrElement->setAttributeNode($opcode);
+
+        $args = $instr->getArgs();
+        if (is_null($args)) {
+            return $instrElement;
+        }
+        for ($i = 1; $i <= count($args); $i++) {
+            $arg = $args[$i - 1];
+            $argElement = $dom->createElement("arg" . $i);
+            $type = new DOMAttr("type", $arg->getType());
+            $argElement->setAttributeNode($type);
+            $content = $this->encodeString($arg->getContent());
+            $argElement->textContent = $content;
+            $instrElement->appendChild($argElement);
+        }
+
+        return $instrElement;
+    }
+
+    private function encodeString($string) {
+        return htmlspecialchars($string, ENT_XML1, 'UTF-8');
+    }
+    private function addArgument($root, $instr) {
+
     }
 }
 
-
-new Main();
+$main = new Main();
+$main->begin();
 
 ?>
