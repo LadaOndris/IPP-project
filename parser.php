@@ -46,7 +46,7 @@ class Main
     }
 
     private function isHeaderValid($header) {
-        return true; // todo
+        return trim($header) == '.IPPcode20';
     }
 }
 
@@ -62,10 +62,7 @@ class StdinInputReader implements IInputReader
 
 class InstructionParser implements IInstructionParser
 {
-    private $opcodes = ["DEFVAR", ""];
     private $reader;
-
-
     private $expectedOperandsList = array(
         "MOVE" => array(ArgType::VAR, ArgType::SYMB),
         "CREATEFRAME" => array(),
@@ -122,7 +119,6 @@ class InstructionParser implements IInstructionParser
         }
         $parts[0] = strtoupper($parts[0]);
         
-        // todo, exists such opcode?
         if (array_key_exists($parts[0], $this->expectedOperandsList) == false) {
             error_log("Invalid instruction: *" . $parts[0]."*");
             return 22;
@@ -132,7 +128,11 @@ class InstructionParser implements IInstructionParser
             error_log("Expected operands don't match given.");
             return 23;
         }
-        return $this->createInstruction($parts, $expectedOperands);
+        $instr = $this->createInstruction($parts, $expectedOperands);
+        if (!($instr instanceof Instruction)) {
+            return 23;
+        }
+        return $instr;
     }
 
     private function readNextNonEmptyLine() {
@@ -157,7 +157,8 @@ class InstructionParser implements IInstructionParser
     private function createInstruction($parts, $expectedOperands) {
         $opcode = $parts[0];
         $args = $this->parseArgs($parts, $expectedOperands);
-        
+        if (is_numeric($args)) // is error
+            return $args;
         $inst = new Instruction($opcode, $args);
         return $inst;
     }
@@ -172,19 +173,40 @@ class InstructionParser implements IInstructionParser
                 case ArgType::INT:
                 case ArgType::BOOL:
                 case ArgType::STRING: {
-                    $content = explode("@", $operand)[1];
+                    $content = $this->parseVal($operand);
                 } break;
                 case ArgType::TYPE:
                 case ArgType::VAR: {
-                    $operandParts = explode("@", $operand);
-                    $content = strtoupper($operandParts[0]) . "@" . $operandParts[1];
+                    $content = $this->parseVar($operand);
                 } break;
                 case ArgType::LABEL:
                 case ArgType::NIL: {
                     $content = $operand;
                 } break;
                 case ArgType::SYMB: {
-                    $content = $operand; // todo
+                    if ($this->isVar($operand)) {
+                        $operandType = ArgType::VAR;
+                        $content = $operand;
+                    }
+                    elseif ($this->isString($operand)) {
+                        $operandType = ArgType::STRING;
+                        $content = $this->parseVal($operand);
+                    }
+                    elseif ($this->isInt($operand)) {
+                        $operandType = ArgType::INT;
+                        $content = $this->parseVal($operand);
+                    }
+                    elseif ($this->isBool($operand)) {
+                        $operandType = ArgType::BOOL;
+                        $content = $this->parseVal($operand);
+                    }
+                    elseif ($this->isNil($operand)) {
+                        $operandType = ArgType::BOOL;
+                        $content = $this->parseVal($operand);
+                    }
+                    else {
+                        return 23; // error
+                    }
                 } break;
             }
             $arg = new Arg($operandType, $content);
@@ -193,16 +215,45 @@ class InstructionParser implements IInstructionParser
         return $args;
     }
 
+    private function isVar($subject) {
+        return preg_match("/^(GF|LF|TF)\@.+/", $subject);
+    }
+
+    private function isString($subject) {
+        return preg_match("/^string\@.*/", $subject);
+    }
+    
+    private function isInt($subject) {
+        return preg_match("/^int\@.+/", $subject);
+    }
+    
+    private function isBool($subject) {
+        return preg_match("/^bool\@(true|false)/", $subject);
+    }
+
+    private function isNil($subject) {
+        return preg_match("/^nil\@nil/", $subject);
+    }
+
+    private function parseVar($subject) {
+        $operandParts = explode("@", $subject);
+        return strtoupper($operandParts[0]) . "@" . $operandParts[1];
+    }
+
+    private function parseVal($subject) {
+        return explode("@", $subject)[1];
+    }
+
     private function actualEqualsExpected($actualLineParts, $expectedOperands) {
         if (count($actualLineParts) - 1 != count($expectedOperands)) {
             error_log("Wrong number of operands for instruction: " . $actualLineParts[0]);
-            return false; // todo, error code
+            return false;
         }
 
         for ($i = 0; $i < count($expectedOperands); $i++) {
             $isValid = ArgType::isArgValid($expectedOperands[$i], $actualLineParts[$i + 1]);
             if ($isValid == false) {
-                return false; // todo, error code
+                return false;
             }
         }
         return true;
@@ -373,6 +424,6 @@ class XmlProgramSerializer implements IProgramSerializer
 }
 
 $main = new Main();
-$main->begin();
-
+$returnCode = $main->begin();
+exit($returnCode);
 ?>
