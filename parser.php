@@ -1,16 +1,21 @@
-
 <?php
 
 interface IInputParser
 {
-    // returns Program
+    // returns an instance of Program class
     public function parse();
 }
 
 interface IInstructionParser
 {
-    // returns Instruction
+    // returns an instance of Instruction class
     public function getNextInstruction();
+}
+
+interface IArgParser
+{
+    // returns an instance of Arg class
+    public function parseArg($expectedArgumentType, $actualArgument);
 }
 
 interface IInputReader
@@ -23,12 +28,14 @@ interface IProgramSerializer
     public function serialize($program);
 }
 
-class Main
+class Parser
 {
-    public function __construct() {
+    public function __construct($statistics) {
+        $this->statistics = $statistics;
         $this->reader = new StdinInputReader();
-        $this->instParser = new InstructionParser($this->reader);
-        $this->inputParser = new InputParser($this->instParser);
+        $argParser = new ArgParser();
+        $instParser = new InstructionParser($this->reader, $argParser);
+        $this->inputParser = new InputParser($instParser);
         $this->serializer = new XmlProgramSerializer();
     }
 
@@ -42,6 +49,7 @@ class Main
             return $parseResult; 
         }
         $this->serializer->serialize($parseResult);
+        $this->statistics->createStatistics($parseResult);
         return 0;
     }
 
@@ -62,6 +70,7 @@ class StdinInputReader implements IInputReader
 
 class InstructionParser implements IInstructionParser
 {
+    private $commentsCount = 0;
     private $reader;
     private $expectedOperandsList = array(
         "MOVE" => array(ArgType::VAR, ArgType::SYMB),
@@ -107,8 +116,9 @@ class InstructionParser implements IInstructionParser
         "BREAK" => array(),
     );
 
-    public function __construct($reader) {
+    public function __construct($reader, $argParser) {
         $this->reader = $reader;
+        $this->argParser = $argParser;
     }
 
     public function getNextInstruction() {
@@ -124,10 +134,6 @@ class InstructionParser implements IInstructionParser
             return 22;
         }
         $expectedOperands = $this->expectedOperandsList[$parts[0]];
-        if ($this->actualEqualsExpected($parts, $expectedOperands) == false) {
-            error_log("Expected operands don't match given.");
-            return 23;
-        }
         $instr = $this->createInstruction($parts, $expectedOperands);
         if (!($instr instanceof Instruction)) {
             return 23;
@@ -141,9 +147,13 @@ class InstructionParser implements IInstructionParser
             if (!$line) {
                 return NULL;
             }
-            
+
             $line = trim($line); // get rid of white spaces
-            $line = explode("#", $line)[0]; // get rid of comments
+            $parts = explode("#", $line); // get rid of comments
+            if (count($parts) > 1) {
+                $this->commentsCount++;
+            }
+            $line = $parts[0];
             $parts = explode(" ", $line);
             $parts = array_filter($parts, function($s) {
                 return $s !== "";
@@ -156,63 +166,113 @@ class InstructionParser implements IInstructionParser
 
     private function createInstruction($parts, $expectedOperands) {
         $opcode = $parts[0];
-        $args = $this->parseArgs($parts, $expectedOperands);
+        $args = $this->createArgs($parts, $expectedOperands);
         if (is_numeric($args)) // is error
             return $args;
-        $inst = new Instruction($opcode, $args);
-        return $inst;
+        return new Instruction($opcode, $args);
     }
 
-    private function parseArgs($parts, $operandTypes) {
+    private function createArgs($parts, $operandTypes) {
+        if (count($parts) - 1 != count($operandTypes)) {
+            error_log("Wrong number of operands for instruction: " . $operandTypes[0]);
+            return 23;
+        }
         $args = array();
         for ($i = 0; $i < count($operandTypes); $i++) {
             $operandType = $operandTypes[$i];
             $operand = $parts[$i + 1];
 
-            switch ($operandType) {
-                case ArgType::INT:
-                case ArgType::BOOL:
-                case ArgType::STRING: {
-                    $content = $this->parseVal($operand);
-                } break;
-                case ArgType::TYPE:
-                case ArgType::VAR: {
-                    $content = $this->parseVar($operand);
-                } break;
-                case ArgType::LABEL:
-                case ArgType::NIL: {
-                    $content = $operand;
-                } break;
-                case ArgType::SYMB: {
-                    if ($this->isVar($operand)) {
-                        $operandType = ArgType::VAR;
-                        $content = $operand;
-                    }
-                    elseif ($this->isString($operand)) {
-                        $operandType = ArgType::STRING;
-                        $content = $this->parseVal($operand);
-                    }
-                    elseif ($this->isInt($operand)) {
-                        $operandType = ArgType::INT;
-                        $content = $this->parseVal($operand);
-                    }
-                    elseif ($this->isBool($operand)) {
-                        $operandType = ArgType::BOOL;
-                        $content = $this->parseVal($operand);
-                    }
-                    elseif ($this->isNil($operand)) {
-                        $operandType = ArgType::BOOL;
-                        $content = $this->parseVal($operand);
-                    }
-                    else {
-                        return 23; // error
-                    }
-                } break;
-            }
-            $arg = new Arg($operandType, $content);
+            $arg = $this->argParser->parseArg($operandType, $operand);
+            if (is_numeric($arg)) // is error
+                return $arg;
             array_push($args, $arg);
         }
         return $args;
+    }
+
+    public function getCommentsCount() {
+        return $this->commentsCount;
+    }
+}
+
+class ArgParser implements IArgParser
+{
+    public function parseArg($expectedArgumentType, $actualArgument) {
+        $error = 23;
+        $argumentType = $expectedArgumentType;
+        switch ($expectedArgumentType) {
+            case ArgType::INT:
+                if ($this->isInt($actualArgument))
+                    return $this->newIntArg($actualArgument);
+            case ArgType::BOOL:
+                if ($this->isBool($actualArgument))
+                    return $this->newBoolArg($actualArgument);
+            case ArgType::STRING:
+                if ($this->isString($actualArgument))
+                    return $this->newStringArg($actualArgument);
+            case ArgType::TYPE: {
+                $content = $this->parseVar($actualArgument);
+                return new Arg(ArgType::TYPE, $content);
+            }
+            case ArgType::VAR:
+                if ($this->isVar($actualArgument))
+                    return $this->newVarArg($actualArgument);
+            case ArgType::LABEL:
+                return new Arg(ArgType::LABEL, $actualArgument);
+            case ArgType::NIL:
+                if ($this->isNil($actualArgument))
+                    return $this->newNilArg($actualArgument);
+            case ArgType::SYMB: {
+                if ($this->isVar($actualArgument)) {
+                    return $this->newVarArg($actualArgument);
+                }
+                elseif ($this->isString($actualArgument)) {
+                    return $this->newStringArg($actualArgument);
+                }
+                elseif ($this->isInt($actualArgument)) {
+                    return $this->newIntArg($actualArgument);
+                }
+                elseif ($this->isBool($actualArgument)) {
+                    return $this->newBoolArg($actualArgument);
+                }
+                elseif ($this->isNil($actualArgument)) {
+                    return $this->newNilArg($actualArgument);
+                }
+                else {
+                    return $error;
+                }
+            } break;
+            default: {
+                error_log("Undefined ArgType value.");
+                return $error;
+            }
+        }
+        return $error;
+    }
+
+    private function newIntArg($actualArgument) {
+        $content = $this->parseVal($actualArgument);
+        return new Arg(ArgType::INT, $content);
+    }
+
+    private function newBoolArg($actualArgument) {
+        $content = $this->parseVal($actualArgument);
+        return new Arg(ArgType::BOOL, $content);
+    }
+
+    private function newStringArg($actualArgument) {
+        $content = $this->parseVal($actualArgument);
+        return new Arg(ArgType::STRING, $content);
+    }
+
+    private function newNilArg($actualArgument) {
+        $content = $this->parseVal($actualArgument);
+        return new Arg(ArgType::NIL, $content); // todo, nil?
+    }
+    
+    private function newVarArg($actualArgument) {
+        $content = $this->parseVar($actualArgument);
+        return new Arg(ArgType::VAR, $content);
     }
 
     private function isVar($subject) {
@@ -244,20 +304,6 @@ class InstructionParser implements IInstructionParser
         return explode("@", $subject)[1];
     }
 
-    private function actualEqualsExpected($actualLineParts, $expectedOperands) {
-        if (count($actualLineParts) - 1 != count($expectedOperands)) {
-            error_log("Wrong number of operands for instruction: " . $actualLineParts[0]);
-            return false;
-        }
-
-        for ($i = 0; $i < count($expectedOperands); $i++) {
-            $isValid = ArgType::isArgValid($expectedOperands[$i], $actualLineParts[$i + 1]);
-            if ($isValid == false) {
-                return false;
-            }
-        }
-        return true;
-    }
 }
 
 class InputParser implements IInputParser
@@ -283,13 +329,14 @@ class InputParser implements IInputParser
             return $instr;
         }
 
+        $program->setCommentsCount($this->instParser->getCommentsCount());
         return $program;
     }
 }
 
 class Program
 {
-    private $instructions = array(), $language;
+    private $instructions = array(), $language, $commentsCount;
 
     public function __construct($language) {
         $this->language = $language;
@@ -305,6 +352,14 @@ class Program
 
     public function getInstructions() {
         return $this->instructions;
+    }
+
+    public function setCommentsCount($commentsCount) {
+        $this->commentsCount = $commentsCount;
+    }
+
+    public function getCommentsCount() {
+        return $this->commentsCount;
     }
 }
 
@@ -354,11 +409,6 @@ class ArgType
     const TYPE = "type";
     const VAR = "var";
     const SYMB = "symb";
-
-    public static function isArgValid($expectedArgType, $arg) {
-        
-        return true; // todo
-    }
 }
 
 class XmlProgramSerializer implements IProgramSerializer
@@ -418,12 +468,105 @@ class XmlProgramSerializer implements IProgramSerializer
     private function encodeString($string) {
         return htmlspecialchars($string, ENT_XML1, 'UTF-8');
     }
-    private function addArgument($root, $instr) {
+}
 
+class Statistics
+{
+    const LOC = "loc";
+    const COMMENTS = "comments";
+    const LABELS = "labels";
+    const JUMPS = "jumps";
+
+    public function __construct($file, $requestedStats) {
+        $this->file = $file;
+        $this->requestedStats = $requestedStats;
+    }
+
+    public function createStatistics($program) {
+        if (!$this->file) {
+            return;
+        }
+        $file = fopen($this->file, "w"); 
+
+        $instructions = $program->getInstructions();
+        $loc = count($instructions);
+        $comments = $program->getCommentsCount();
+        $labels = $this->countLabels($instructions);
+        $jumps = $this->countJumps($instructions);
+
+        foreach ($this->requestedStats as $stat) {
+            switch ($stat) {
+                case Statistics::LOC: fwrite($file, $loc); break;
+                case Statistics::COMMENTS: fwrite($file, $comments); break;
+                case Statistics::LABELS: fwrite($file, $labels); break;
+                case Statistics::JUMPS: fwrite($file, $jumps); break;
+            }
+            fwrite($file, "\n");
+        }
+        fclose($file);
+    }
+
+    private function countLabels($instructions) {
+        $labels = 0;
+        foreach ($instructions as $instruction) {
+            $args = $instruction->getArgs();
+            foreach ($args as $arg) {
+                if ($arg->getType() == ArgType::LABEL)
+                    $labels++;
+            }
+        }
+        return $labels;
+    }
+
+    private function countJumps($instructions) {
+        $jumps = 0;
+        foreach ($instructions as $instruction) {
+            $opcode = $instruction->getOpcode();
+            if ($opcode == "CALL" ||
+                $opcode == "RETURN" ||
+                $opcode == "RETURN" ||
+                $opcode == "JUMP" ||
+                $opcode == "JUMPIFEQ" ||
+                $opcode == "JUMPIFNEQ") {
+                $jumps++;
+            }
+        }
+        return $jumps;
     }
 }
 
-$main = new Main();
-$returnCode = $main->begin();
+$statsOptions = array();
+$statsFile = NULL;
+
+for ($i = 1; $i < count($argv); $i++) {
+    switch ($argv[$i]) {
+        case "--help":  $help = true; break;
+        case "--loc": array_push($statsOptions, Statistics::LOC); break;
+        case "--comments": array_push($statsOptions, Statistics::COMMENTS); break;
+        case "--labels": array_push($statsOptions, Statistics::LABELS); break;
+        case "--jumps": array_push($statsOptions, Statistics::JUMPS); break;
+        default: {
+            if (preg_match("/^--stats=.+/", $argv[$i])) {
+                $statsFile = explode("=", $argv[$i])[1];
+            }
+            else {
+                exit(10);
+            }
+        } 
+    }
+}
+
+if (count($statsOptions) > 0 && !$statsFile) {
+    exit(10); // statsFile parameter wasn't defined
+}
+// help cannot be combined with any other parameter
+if ($help && (count($statsOptions) > 0 || $statsFile)) {
+    exit(10);
+}
+
+$stats = new Statistics($statsFile, $statsOptions);
+$parser = new Parser($stats);
+$returnCode = $parser->begin();
 exit($returnCode);
+
 ?>
