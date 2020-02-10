@@ -1,6 +1,6 @@
 <?php
 
-interface IInputParser
+interface IProgramParser
 {
     // returns an instance of Program class
     public function parse();
@@ -35,26 +35,18 @@ class Parser
         $this->reader = new StdinInputReader();
         $argParser = new ArgParser();
         $instParser = new InstructionParser($this->reader, $argParser);
-        $this->inputParser = new InputParser($instParser);
+        $this->programParser = new ProgramParser($instParser);
         $this->serializer = new XmlProgramSerializer();
     }
 
     public function begin() {
-        $inputHeader = $this->reader->readNextLine();
-        if ($this->isHeaderValid($inputHeader) == false) {
-            return 21;
-        }
-        $parseResult = $this->inputParser->parse();
+        $parseResult = $this->programParser->parse();
         if (is_numeric($parseResult)) {
-            return $parseResult; 
+            return $parseResult;
         }
         $this->serializer->serialize($parseResult);
         $this->statistics->createStatistics($parseResult);
         return 0;
-    }
-
-    private function isHeaderValid($header) {
-        return trim($header) == '.IPPcode20';
     }
 }
 
@@ -93,7 +85,7 @@ class InstructionParser implements IInstructionParser
         "EQ" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
         "AND" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
         "OR" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
-        "NOT" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
+        "NOT" => array(ArgType::VAR, ArgType::SYMB),
         "INT2CHAR" => array(ArgType::VAR, ArgType::SYMB),
         "STRI2INT" => array(ArgType::VAR, ArgType::SYMB, ArgType::SYMB),
         
@@ -201,19 +193,9 @@ class ArgParser implements IArgParser
         $error = 23;
         $argumentType = $expectedArgumentType;
         switch ($expectedArgumentType) {
-            case ArgType::INT:
-                if ($this->isInt($actualArgument))
-                    return $this->newIntArg($actualArgument);
-            case ArgType::BOOL:
-                if ($this->isBool($actualArgument))
-                    return $this->newBoolArg($actualArgument);
-            case ArgType::STRING:
-                if ($this->isString($actualArgument))
-                    return $this->newStringArg($actualArgument);
-            case ArgType::TYPE: {
-                $content = $this->parseVar($actualArgument);
-                return new Arg(ArgType::TYPE, $content);
-            }
+            case ArgType::TYPE:
+                if ($this->isType($actualArgument))
+                    return $this->newTypeArg($actualArgument);
             case ArgType::VAR:
                 if ($this->isVar($actualArgument))
                     return $this->newVarArg($actualArgument);
@@ -250,6 +232,10 @@ class ArgParser implements IArgParser
         return $error;
     }
 
+    private function newTypeArg($actualArgument) {
+        return new Arg(ArgType::TYPE, $actualArgument);
+    }
+
     private function newIntArg($actualArgument) {
         $content = $this->parseVal($actualArgument);
         return new Arg(ArgType::INT, $content);
@@ -273,6 +259,10 @@ class ArgParser implements IArgParser
     private function newVarArg($actualArgument) {
         $content = $this->parseVar($actualArgument);
         return new Arg(ArgType::VAR, $content);
+    }
+
+    private function isType($subject) {
+        return preg_match("/^(int|bool|string)/", $subject);
     }
 
     private function isVar($subject) {
@@ -306,17 +296,22 @@ class ArgParser implements IArgParser
 
 }
 
-class InputParser implements IInputParser
+class ProgramParser implements IProgramParser
 {
-    private $instParser;
+    private $instParser, $lineReader;
 
-    public function __construct($instParser) {
+    public function __construct($instParser, $lineReader) {
         $this->instParser = $instParser;
+        $this->lineReader = $lineReader;
     }
 
     public function parse() {
-        $program = new Program("IPPcode20");
+        $inputHeader = $this->lineReader->readNextLine();
+        if ($this->isHeaderValid($inputHeader) == false) {
+            return 21;
+        }
 
+        $program = new Program("IPPcode20");
         $instr = $this->instParser->getNextInstruction();
 
         while ($instr instanceof Instruction) {
@@ -331,6 +326,10 @@ class InputParser implements IInputParser
 
         $program->setCommentsCount($this->instParser->getCommentsCount());
         return $program;
+    }
+
+    private function isHeaderValid($header) {
+        return trim($header) == '.IPPcode20';
     }
 }
 
