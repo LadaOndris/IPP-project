@@ -28,26 +28,16 @@ interface IProgramSerializer
     public function serialize($program);
 }
 
-class Parser
+class Error 
 {
-    public function __construct($statistics) {
-        $this->statistics = $statistics;
-        $this->reader = new StdinInputReader();
-        $argParser = new ArgParser();
-        $instParser = new InstructionParser($this->reader, $argParser);
-        $this->programParser = new ProgramParser($instParser);
-        $this->serializer = new XmlProgramSerializer();
-    }
+    const INVALID_COMBINATION_OF_ARGUMENTS = 10;
+    const INVALID_ARGUMENT = 10;
+    const MISSING_ARGUMENT = 10;
 
-    public function begin() {
-        $parseResult = $this->programParser->parse();
-        if (is_numeric($parseResult)) {
-            return $parseResult;
-        }
-        $this->serializer->serialize($parseResult);
-        $this->statistics->createStatistics($parseResult);
-        return 0;
-    }
+    const INVALID_HEADER = 21;
+    const INVALID_INSTRUCTION_OPCODE = 22;
+    const INVALID_ARGUMENT_TYPE = 23;
+    const INVALID_OPERANDS_COUNT = 23;
 }
 
 class StdinInputReader implements IInputReader 
@@ -113,6 +103,10 @@ class InstructionParser implements IInstructionParser
         $this->argParser = $argParser;
     }
 
+    /**
+     * Returns a next instruction parsed from the input.
+     * Returns NULL if there is no more input.
+     */
     public function getNextInstruction() {
         // read line and reformat
         $parts = $this->readNextNonEmptyLine();
@@ -122,15 +116,10 @@ class InstructionParser implements IInstructionParser
         $parts[0] = strtoupper($parts[0]);
         
         if (array_key_exists($parts[0], $this->expectedOperandsList) == false) {
-            error_log("Invalid instruction: *" . $parts[0]."*");
-            return 22;
+            throw new Exception("Invalid instruction opcode: " . $parts[0], Error::INVALID_INSTRUCTION_OPCODE);
         }
         $expectedOperands = $this->expectedOperandsList[$parts[0]];
-        $instr = $this->createInstruction($parts, $expectedOperands);
-        if (!($instr instanceof Instruction)) {
-            return 23;
-        }
-        return $instr;
+        return $this->createInstruction($parts, $expectedOperands);
     }
 
     private function readNextNonEmptyLine() {
@@ -151,23 +140,18 @@ class InstructionParser implements IInstructionParser
                 return $s !== "";
             });
         } while(count($parts) == 0);
-        
-        print_r($parts);
         return $parts;
     }
 
     private function createInstruction($parts, $expectedOperands) {
         $opcode = $parts[0];
         $args = $this->createArgs($parts, $expectedOperands);
-        if (is_numeric($args)) // is error
-            return $args;
         return new Instruction($opcode, $args);
     }
 
     private function createArgs($parts, $operandTypes) {
         if (count($parts) - 1 != count($operandTypes)) {
-            error_log("Wrong number of operands for instruction: " . $operandTypes[0]);
-            return 23;
+            throw new Exception("Wrong number of operands for instruction: " . $operandTypes[0], Error::INVALID_OPERANDS_COUNT);
         }
         $args = array();
         for ($i = 0; $i < count($operandTypes); $i++) {
@@ -175,8 +159,6 @@ class InstructionParser implements IInstructionParser
             $operand = $parts[$i + 1];
 
             $arg = $this->argParser->parseArg($operandType, $operand);
-            if (is_numeric($arg)) // is error
-                return $arg;
             array_push($args, $arg);
         }
         return $args;
@@ -190,7 +172,6 @@ class InstructionParser implements IInstructionParser
 class ArgParser implements IArgParser
 {
     public function parseArg($expectedArgumentType, $actualArgument) {
-        $error = 23;
         $argumentType = $expectedArgumentType;
         switch ($expectedArgumentType) {
             case ArgType::TYPE:
@@ -221,15 +202,13 @@ class ArgParser implements IArgParser
                     return $this->newNilArg($actualArgument);
                 }
                 else {
-                    return $error;
+                    throw new Exception("Expected SYMB argument, but the format is invalid", Error::INVALID_ARGUMENT_TYPE);
                 }
             } break;
             default: {
-                error_log("Undefined ArgType value.");
-                return $error;
+                throw new Exception("Undefined ArgType value.", Error::INVALID_ARGUMENT_TYPE);
             }
         }
-        return $error;
     }
 
     private function newTypeArg($actualArgument) {
@@ -308,7 +287,7 @@ class ProgramParser implements IProgramParser
     public function parse() {
         $inputHeader = $this->lineReader->readNextLine();
         if ($this->isHeaderValid($inputHeader) == false) {
-            return 21;
+            throw new Exception("Invalid header", Error::INVALID_HEADER);
         }
 
         $program = new Program("IPPcode20");
@@ -317,11 +296,6 @@ class ProgramParser implements IProgramParser
         while ($instr instanceof Instruction) {
             $program->appendInstruction($instr);
             $instr = $this->instParser->getNextInstruction();
-        }
-
-        // is error code?
-        if (is_numeric($instr)) { 
-            return $instr;
         }
 
         $program->setCommentsCount($this->instParser->getCommentsCount());
@@ -534,38 +508,69 @@ class Statistics
     }
 }
 
-$statsOptions = array();
-$statsFile = NULL;
+class ArgsParser
+{
+    private $argv;
 
-for ($i = 1; $i < count($argv); $i++) {
-    switch ($argv[$i]) {
-        case "--help":  $help = true; break;
-        case "--loc": array_push($statsOptions, Statistics::LOC); break;
-        case "--comments": array_push($statsOptions, Statistics::COMMENTS); break;
-        case "--labels": array_push($statsOptions, Statistics::LABELS); break;
-        case "--jumps": array_push($statsOptions, Statistics::JUMPS); break;
-        default: {
-            if (preg_match("/^--stats=.+/", $argv[$i])) {
-                $statsFile = explode("=", $argv[$i])[1];
+    public function __construct($argv) {
+        $this->argv = $argv;
+    }
+
+    public function parse() {
+        $args = new Args();
+        
+        for ($i = 1; $i < count($argv); $i++) {
+            switch ($argv[$i]) {
+                case "--help":  $args->help = true; break;
+                case "--loc": array_push($args->statsOptions, Statistics::LOC); break;
+                case "--comments": array_push($args->statsOptions, Statistics::COMMENTS); break;
+                case "--labels": array_push($args->statsOptions, Statistics::LABELS); break;
+                case "--jumps": array_push($args->statsOptions, Statistics::JUMPS); break;
+                default: {
+                    if (preg_match("/^--stats=.+/", $argv[$i])) {
+                        $args->statsFile = explode("=", $argv[$i])[1];
+                    }
+                    else {
+                        throw new Exception("Invalid argument", Error::INVALID_ARGUMENT);
+                    }
+                } 
             }
-            else {
-                exit(10);
-            }
-        } 
+        }
+        
+        if (count($args->statsOptions) > 0 && !$args->statsFile) {
+            throw new Exception("--statsFile parameter wasn't defined", Error::MISSING_ARGUMENT);
+        }
+        if ($args->help && (count($args->statsOptions) > 0 || $args->statsFile)) {
+            throw new Exception("--help cannot be combined with any other parameter", Error::INVALID_COMBINATION_OF_ARGUMENTS);
+        }
+        return $args;
     }
 }
 
-if (count($statsOptions) > 0 && !$statsFile) {
-    exit(10); // statsFile parameter wasn't defined
-}
-// help cannot be combined with any other parameter
-if ($help && (count($statsOptions) > 0 || $statsFile)) {
-    exit(10);
+class Args {
+    public $help = false;
+    public $statsOptions = array();
+    public $statsFile = NULL;
 }
 
-$stats = new Statistics($statsFile, $statsOptions);
-$parser = new Parser($stats);
-$returnCode = $parser->begin();
-exit($returnCode);
+try {
+    $argsParser = new ArgsParser($argv);
+    $args = $argsParser->parse();
+
+    $statistics = new Statistics($args->statsFile, $args->statsOptions);
+    $inputReader = new StdinInputReader();
+    $argParser = new ArgParser();
+    $instParser = new InstructionParser($inputReader, $argParser);
+    $rogramParser = new ProgramParser($instParser, $inputReader);
+    $serializer = new XmlProgramSerializer();
+
+    $parseResult = $this->programParser->parse();
+    $serializer->serialize($parseResult);
+    $statistics->createStatistics($parseResult);
+}
+catch (Exception $e) {
+    error_log($e->getMessage());
+    exit($e->getCode());
+}
 
 ?>
