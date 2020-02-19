@@ -1,0 +1,115 @@
+
+<html>
+    <head>
+        <style>
+            body {    
+                max-width: 900px;
+                margin: auto;
+                font-family: "Segoe UI";
+            }
+
+            header {
+                display: flex;
+                justify-content: center;
+            }
+
+            .testSuite {
+
+            }
+
+            #overallSummary {
+                display: flex;
+                justify-content: center;
+                width: inherit;
+                font-size: 28;
+                background: #c8e1e9;
+                border: 2px solid;
+                padding: 5px;
+            }
+
+            #overallSummary table {
+                width: 200px;
+                font-size: 20px;
+            }
+
+            .directorySummary table {
+                margin-top: 10px;
+                font-weight: bold;
+                font-size: 16px;
+            }
+
+            section table td {
+                width: 200px;
+            }
+
+            .failed {
+                color: red;
+            }
+
+            .passed {
+                color: green;
+            }
+        </style>
+
+    </head>
+
+    <body>
+        <header>
+            <h1>Tests summary</h1>
+        </header>
+        <section>
+            <div id="overallSummary">
+                <table>
+                    <tr>
+                        <td>Passed</td>
+                        <td>2</td>
+                    </tr>
+                    <tr>
+                        <td>Failed</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td>Total</td>
+                        <td>5</td>
+                    </tr>
+                </table>
+            </div>
+            <hr />
+
+            <div class="testSuite">
+                <h2 class="directory">./Parser_tests</h2>
+                <table>
+                    <tr>
+                        <td>Test1</td>
+                        <td class="passed">Passed</td>
+                    </tr>
+                    <tr>
+                        <td>Test2</td>
+                        <td class="passed">Passed</td class="passed">
+                    </tr>
+                    <tr>
+                        <td>Test3</td>
+                        <td class="failed">Failed</td class="passed">
+                    </tr>
+                </table>
+                <div class="directorySummary">
+                    <table>
+                        <tr>
+                            <td>Passed</td>
+                            <td>2</td>
+                        </tr>
+                        <tr>
+                            <td>Failed</td>
+                            <td>1</td>
+                        </tr>
+                        <tr>
+                            <td>Total</td>
+                            <td>3</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <hr />
+        </section>
+    </body>
+</html>

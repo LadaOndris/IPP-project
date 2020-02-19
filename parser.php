@@ -10,6 +10,7 @@ interface IInstructionParser
 {
     // returns an instance of Instruction class
     public function getNextInstruction();
+    public function getCommentsCount();
 }
 
 interface IArgParser
@@ -28,7 +29,7 @@ interface IProgramSerializer
     public function serialize($program);
 }
 
-class Error 
+class Errors
 {
     const INVALID_COMBINATION_OF_ARGUMENTS = 10;
     const INVALID_ARGUMENT = 10;
@@ -52,8 +53,9 @@ class StdinInputReader implements IInputReader
 
 class InstructionParser implements IInstructionParser
 {
-    private $commentsCount = 0;
     private $reader;
+    private $argParser;
+    private $commentsCount = 0;
     private $expectedOperandsList = array(
         "MOVE" => array(ArgType::VAR, ArgType::SYMB),
         "CREATEFRAME" => array(),
@@ -98,7 +100,7 @@ class InstructionParser implements IInstructionParser
         "BREAK" => array(),
     );
 
-    public function __construct($reader, $argParser) {
+    public function __construct(IInputReader $reader, IArgParser $argParser) {
         $this->reader = $reader;
         $this->argParser = $argParser;
     }
@@ -116,7 +118,7 @@ class InstructionParser implements IInstructionParser
         $parts[0] = strtoupper($parts[0]);
         
         if (array_key_exists($parts[0], $this->expectedOperandsList) == false) {
-            throw new Exception("Invalid instruction opcode: " . $parts[0], Error::INVALID_INSTRUCTION_OPCODE);
+            throw new Exception("Invalid instruction opcode: " . $parts[0], Errors::INVALID_INSTRUCTION_OPCODE);
         }
         $expectedOperands = $this->expectedOperandsList[$parts[0]];
         return $this->createInstruction($parts, $expectedOperands);
@@ -151,7 +153,7 @@ class InstructionParser implements IInstructionParser
 
     private function createArgs($parts, $operandTypes) {
         if (count($parts) - 1 != count($operandTypes)) {
-            throw new Exception("Wrong number of operands for instruction: " . $operandTypes[0], Error::INVALID_OPERANDS_COUNT);
+            throw new Exception("Wrong number of operands for instruction: " . $operandTypes[0], Errors::INVALID_OPERANDS_COUNT);
         }
         $args = array();
         for ($i = 0; $i < count($operandTypes); $i++) {
@@ -177,14 +179,18 @@ class ArgParser implements IArgParser
             case ArgType::TYPE:
                 if ($this->isType($actualArgument))
                     return $this->newTypeArg($actualArgument);
+                break;
             case ArgType::VAR:
                 if ($this->isVar($actualArgument))
                     return $this->newVarArg($actualArgument);
+                break;
             case ArgType::LABEL:
-                return new Arg(ArgType::LABEL, $actualArgument);
+                return new Argument(ArgType::LABEL, $actualArgument);
+                break;
             case ArgType::NIL:
                 if ($this->isNil($actualArgument))
                     return $this->newNilArg($actualArgument);
+                break;
             case ArgType::SYMB: {
                 if ($this->isVar($actualArgument)) {
                     return $this->newVarArg($actualArgument);
@@ -202,42 +208,43 @@ class ArgParser implements IArgParser
                     return $this->newNilArg($actualArgument);
                 }
                 else {
-                    throw new Exception("Expected SYMB argument, but the format is invalid", Error::INVALID_ARGUMENT_TYPE);
+                    throw new Exception("Expected SYMB argument, but the format is invalid", Errors::INVALID_ARGUMENT_TYPE);
                 }
             } break;
             default: {
-                throw new Exception("Undefined ArgType value.", Error::INVALID_ARGUMENT_TYPE);
+                throw new Exception("Undefined ArgType value.", Errors::INVALID_ARGUMENT_TYPE);
             }
         }
+        throw new Exception("Invalid ArgType value.", Errors::INVALID_ARGUMENT_TYPE);
     }
 
     private function newTypeArg($actualArgument) {
-        return new Arg(ArgType::TYPE, $actualArgument);
+        return new Argument(ArgType::TYPE, $actualArgument);
     }
 
     private function newIntArg($actualArgument) {
         $content = $this->parseVal($actualArgument);
-        return new Arg(ArgType::INT, $content);
+        return new Argument(ArgType::INT, $content);
     }
 
     private function newBoolArg($actualArgument) {
         $content = $this->parseVal($actualArgument);
-        return new Arg(ArgType::BOOL, $content);
+        return new Argument(ArgType::BOOL, $content);
     }
 
     private function newStringArg($actualArgument) {
         $content = $this->parseVal($actualArgument);
-        return new Arg(ArgType::STRING, $content);
+        return new Argument(ArgType::STRING, $content);
     }
 
     private function newNilArg($actualArgument) {
         $content = $this->parseVal($actualArgument);
-        return new Arg(ArgType::NIL, $content); // todo, nil?
+        return new Argument(ArgType::NIL, $content); // todo, nil?
     }
     
     private function newVarArg($actualArgument) {
         $content = $this->parseVar($actualArgument);
-        return new Arg(ArgType::VAR, $content);
+        return new Argument(ArgType::VAR, $content);
     }
 
     private function isType($subject) {
@@ -272,38 +279,45 @@ class ArgParser implements IArgParser
     private function parseVal($subject) {
         return explode("@", $subject)[1];
     }
-
 }
 
 class ProgramParser implements IProgramParser
 {
-    private $instParser, $lineReader;
+    private $instParser;
+    private $lineReader;
+    private $program;
 
-    public function __construct($instParser, $lineReader) {
+    public function __construct(IInstructionParser $instParser, IInputReader $lineReader) {
         $this->instParser = $instParser;
         $this->lineReader = $lineReader;
     }
 
     public function parse() {
+        $this->checkProgramHeader();
+        $this->program = new Program("IPPcode20");
+        $this->loadInstructions();
+        $this->program->setCommentsCount($this->instParser->getCommentsCount());
+        return $this->program;
+    }
+
+    private function checkProgramHeader() {
         $inputHeader = $this->lineReader->readNextLine();
         if ($this->isHeaderValid($inputHeader) == false) {
-            throw new Exception("Invalid header", Error::INVALID_HEADER);
+            throw new Exception("Invalid header", Errors::INVALID_HEADER);
         }
-
-        $program = new Program("IPPcode20");
-        $instr = $this->instParser->getNextInstruction();
-
-        while ($instr instanceof Instruction) {
-            $program->appendInstruction($instr);
-            $instr = $this->instParser->getNextInstruction();
-        }
-
-        $program->setCommentsCount($this->instParser->getCommentsCount());
-        return $program;
     }
 
     private function isHeaderValid($header) {
         return trim($header) == '.IPPcode20';
+    }
+
+    private function loadInstructions() {
+        $instr = $this->instParser->getNextInstruction();
+        while ($instr instanceof Instruction) {
+            $this->program->appendInstruction($instr);
+            $instr = $this->instParser->getNextInstruction();
+        }
+
     }
 }
 
@@ -354,26 +368,26 @@ class Instruction
     }
 }
 
-class Arg
+class Argument
 {
-    private $type, $content;
+    protected $argumentType, $content;
 
     public function __construct($type, $content) {
-        $this->type = $type;
+        $this->argumentType = $type;
         $this->content = $content;
     }
 
     public function getType() {
-        return $this->type;
+        return $this->argumentType;
     }
 
     public function getContent() {
         return $this->content;
     }
+
 }
 
-class ArgType
-{
+abstract class ArgType {
     const INT = "int";
     const BOOL = "bool";
     const STRING = "string";
@@ -450,6 +464,9 @@ class Statistics
     const LABELS = "labels";
     const JUMPS = "jumps";
 
+    private $jumpInstructions = array("CALL", "RETURN", "JUMP", "JUMPIFEQ", "JUMPIFNEQ");
+    private $instructionsCount, $commentsCount, $labelsCount, $jumpInstructionsCount;
+
     public function __construct($file, $requestedStats) {
         $this->file = $file;
         $this->requestedStats = $requestedStats;
@@ -459,24 +476,16 @@ class Statistics
         if (!$this->file) {
             return;
         }
-        $file = fopen($this->file, "w"); 
+        $this->setStatistics($program);
+        $this->writeStatistics();
+    }
 
+    private function setStatistics($program) {
         $instructions = $program->getInstructions();
-        $loc = count($instructions);
-        $comments = $program->getCommentsCount();
-        $labels = $this->countLabels($instructions);
-        $jumps = $this->countJumps($instructions);
-
-        foreach ($this->requestedStats as $stat) {
-            switch ($stat) {
-                case Statistics::LOC: fwrite($file, $loc); break;
-                case Statistics::COMMENTS: fwrite($file, $comments); break;
-                case Statistics::LABELS: fwrite($file, $labels); break;
-                case Statistics::JUMPS: fwrite($file, $jumps); break;
-            }
-            fwrite($file, "\n");
-        }
-        fclose($file);
+        $this->instructionsCount = count($instructions);
+        $this->commentsCount = $program->getCommentsCount();
+        $this->labelsCount = $this->countLabels($instructions);
+        $this->jumpInstructionsCount = $this->countJumpInstructions($instructions);
     }
 
     private function countLabels($instructions) {
@@ -491,20 +500,38 @@ class Statistics
         return $labels;
     }
 
-    private function countJumps($instructions) {
+    private function countJumpInstructions($instructions) {
         $jumps = 0;
         foreach ($instructions as $instruction) {
-            $opcode = $instruction->getOpcode();
-            if ($opcode == "CALL" ||
-                $opcode == "RETURN" ||
-                $opcode == "RETURN" ||
-                $opcode == "JUMP" ||
-                $opcode == "JUMPIFEQ" ||
-                $opcode == "JUMPIFNEQ") {
+            if ($this->isJumpInstruction($instruction)) {
                 $jumps++;
             }
         }
         return $jumps;
+    }
+
+    private function isJumpInstruction($instruction) {
+        $opcode = $instruction->getOpcode();
+        return in_array($opcode, $this->jumpInstructions);
+    }
+
+    private function writeStatistics() {
+        $file = fopen($this->file, "w"); 
+        foreach ($this->requestedStats as $stat) {
+            $this->writeStatisticToFile($stat, $file);
+        }
+        fclose($file);
+    }
+
+    private function writeStatisticToFile($stat, $file) {
+        // switch statement? should be polymorphic? should we rather use an array?
+        switch ($stat) {
+            case Statistics::LOC: fwrite($file, $this->instructionsCount); break;
+            case Statistics::COMMENTS: fwrite($file, $this->commentsCount); break;
+            case Statistics::LABELS: fwrite($file, $this->labelsCount); break;
+            case Statistics::JUMPS: fwrite($file, $this->jumpInstructionsCount); break;
+        }
+        fwrite($file, "\n");
     }
 }
 
@@ -517,33 +544,40 @@ class ArgsParser
     }
 
     public function parse() {
+        $args = $this->loadArguments();
+        $this->checkArgumentsValidity($args);
+        return $args;
+    }
+
+    private function loadArguments() {
         $args = new Args();
-        
-        for ($i = 1; $i < count($argv); $i++) {
-            switch ($argv[$i]) {
+        for ($i = 1; $i < count($this->argv); $i++) {
+            switch ($this->argv[$i]) {
                 case "--help":  $args->help = true; break;
                 case "--loc": array_push($args->statsOptions, Statistics::LOC); break;
                 case "--comments": array_push($args->statsOptions, Statistics::COMMENTS); break;
                 case "--labels": array_push($args->statsOptions, Statistics::LABELS); break;
                 case "--jumps": array_push($args->statsOptions, Statistics::JUMPS); break;
                 default: {
-                    if (preg_match("/^--stats=.+/", $argv[$i])) {
-                        $args->statsFile = explode("=", $argv[$i])[1];
+                    if (preg_match("/^--stats=.+/", $this->argv[$i])) {
+                        $args->statsFile = explode("=", $this->argv[$i])[1];
                     }
                     else {
-                        throw new Exception("Invalid argument", Error::INVALID_ARGUMENT);
+                        throw new Exception("Invalid argument: " . $this->argv[$i], Errors::INVALID_ARGUMENT);
                     }
                 } 
             }
         }
-        
+        return $args;
+    }
+
+    private function checkArgumentsValidity($args) {
         if (count($args->statsOptions) > 0 && !$args->statsFile) {
-            throw new Exception("--statsFile parameter wasn't defined", Error::MISSING_ARGUMENT);
+            throw new Exception("--statsFile parameter wasn't defined", Errors::MISSING_ARGUMENT);
         }
         if ($args->help && (count($args->statsOptions) > 0 || $args->statsFile)) {
-            throw new Exception("--help cannot be combined with any other parameter", Error::INVALID_COMBINATION_OF_ARGUMENTS);
+            throw new Exception("--help cannot be combined with any other parameter", Errors::INVALID_COMBINATION_OF_ARGUMENTS);
         }
-        return $args;
     }
 }
 
@@ -561,10 +595,10 @@ try {
     $inputReader = new StdinInputReader();
     $argParser = new ArgParser();
     $instParser = new InstructionParser($inputReader, $argParser);
-    $rogramParser = new ProgramParser($instParser, $inputReader);
+    $programParser = new ProgramParser($instParser, $inputReader);
     $serializer = new XmlProgramSerializer();
 
-    $parseResult = $this->programParser->parse();
+    $parseResult = $programParser->parse();
     $serializer->serialize($parseResult);
     $statistics->createStatistics($parseResult);
 }
