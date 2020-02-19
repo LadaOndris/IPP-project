@@ -1,0 +1,6 @@
+ # This comment should cause no problem
+# Neither should this one
+
+.IPPcode20
+DEFVAR GF@counter
+MOVE GF@counter string@

@@ -1,0 +1,4 @@
+.IPPcode20
+DEFVAR GF@counter
+UNKNOWN GF@counter string@
+LABEL while

@@ -11,10 +11,8 @@
             header {
                 display: flex;
                 justify-content: center;
-            }
-
-            .testSuite {
-
+                flex-flow: column;
+                text-align: center;
             }
 
             #overallSummary {
@@ -56,8 +54,6 @@
     <body>
         <header>
             <h1>Tests summary</h1>
-        </header>
-        <section>
             <div id="overallSummary">
                 <table>
                     <tr>
@@ -75,7 +71,8 @@
                 </table>
             </div>
             <hr />
-
+        </header>
+        <section>
             <div class="testSuite">
                 <h2 class="directory">./Parser_tests</h2>
                 <table>
@@ -85,11 +82,11 @@
                     </tr>
                     <tr>
                         <td>Test2</td>
-                        <td class="passed">Passed</td class="passed">
+                        <td class="passed">Passed</td>
                     </tr>
                     <tr>
                         <td>Test3</td>
-                        <td class="failed">Failed</td class="passed">
+                        <td class="failed">Failed</td>
                     </tr>
                 </table>
                 <div class="directorySummary">
