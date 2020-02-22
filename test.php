@@ -232,7 +232,6 @@ class DirectoryTestSuiteReader implements ITestSuiteReader
 
     public function read() {
         $testSuites = array();
-        
         $dirs = array();
         if ($this->recursively) {
             $dirs = $this->getSubDirectories($this->directory);
@@ -564,6 +563,12 @@ class TestRunner implements ITestRunner
         exec($parseCommand, $output, $returnCode);
 
         // check return code
+        $hasPassed = $this->checkReturnCode($testCase, $returnCode);
+
+        // check output
+        if ($hasPassed && $returnCode == 0) {
+            
+        }
 
         // diff results
         
@@ -573,11 +578,16 @@ class TestRunner implements ITestRunner
     
     private function getParseCommand($test, $tmpOutFilename) {
         $srcFile =  $test->getSourceFilename();
-        return "D:\\Programs\\Xampp\\php\\php.exe -f {$this->parseScript} < \"{$srcFile}\" > \"{$tmpOutFilename}\" 2> nul";
+        return "php \"{$this->parseScript}\" < \"{$srcFile}\" > \"{$tmpOutFilename}\" 2> /dev/null";
     }
 
     private function getInterpretCommand($test, $tmpOutFilename) {
+        $srcFile =  $test->getSourceFilename();
+        return "python3 \"{$this->intScript}\" < \"{$srcFile}\" > \"{$tmpOutFilename}\" 2> /dev/null";
+    }
 
+    private function getDiffCommand($test) {
+        //return "diff "
     }
 }
 

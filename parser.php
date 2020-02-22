@@ -10,7 +10,6 @@ interface IInstructionParser
 {
     // returns an instance of Instruction class
     public function getNextInstruction();
-    public function getCommentsCount();
 }
 
 interface IArgParser
@@ -22,6 +21,7 @@ interface IArgParser
 interface IInputReader
 {
     public function readNextLine();
+    public function getCommentsCount();
 }
 
 interface IProgramSerializer
@@ -43,19 +43,43 @@ class Errors
 
 class StdinInputReader implements IInputReader 
 {
+    private $commentsCount = 0;
+
     public function readNextLine() {
-        #return "MOVE GF@counter string@";
-        $line = fgets(STDIN);
-        return $line;
+        return $this->readNextNonEmptyLine();
     }
 
+    private function readLine() {
+        return fgets(STDIN);;
+    }
+    
+    private function readNextNonEmptyLine() {
+        do {
+            $line = $this->readLine();
+            if (!$line) {   
+                return NULL;
+            }
+
+            $line = trim($line); // get rid of white spaces
+            $parts = explode("#", $line); // get rid of comments
+            if (count($parts) > 1) {
+                $this->commentsCount++;
+            }
+            $line = $parts[0];
+            $parts = preg_split("/\s+/", $line, 0, PREG_SPLIT_NO_EMPTY);
+        } while(count($parts) == 0);
+        return $parts;
+    }
+
+    public function getCommentsCount() {
+        return $this->commentsCount;
+    }
 }
 
 class InstructionParser implements IInstructionParser
 {
     private $reader;
     private $argParser;
-    private $commentsCount = 0;
     private $expectedOperandsList = array(
         "MOVE" => array(ArgType::VAR, ArgType::SYMB),
         "CREATEFRAME" => array(),
@@ -111,7 +135,7 @@ class InstructionParser implements IInstructionParser
      */
     public function getNextInstruction() {
         // read line and reformat
-        $parts = $this->readNextNonEmptyLine();
+        $parts = $this->reader->readNextLine();
         if ($parts === NULL) {
             return NULL;
         }
@@ -124,27 +148,6 @@ class InstructionParser implements IInstructionParser
         return $this->createInstruction($parts, $expectedOperands);
     }
 
-    private function readNextNonEmptyLine() {
-        do {
-            $line = $this->reader->readNextLine();
-            if (!$line) {
-                return NULL;
-            }
-
-            $line = trim($line); // get rid of white spaces
-            $parts = explode("#", $line); // get rid of comments
-            if (count($parts) > 1) {
-                $this->commentsCount++;
-            }
-            $line = $parts[0];
-            $parts = explode(" ", $line);
-            $parts = array_filter($parts, function($s) {
-                return $s !== "";
-            });
-        } while(count($parts) == 0);
-        return $parts;
-    }
-
     private function createInstruction($parts, $expectedOperands) {
         $opcode = $parts[0];
         $args = $this->createArgs($parts, $expectedOperands);
@@ -153,7 +156,7 @@ class InstructionParser implements IInstructionParser
 
     private function createArgs($parts, $operandTypes) {
         if (count($parts) - 1 != count($operandTypes)) {
-            throw new Exception("Wrong number of operands for instruction: " . $operandTypes[0], Errors::INVALID_OPERANDS_COUNT);
+            throw new Exception("Wrong number of operands for instruction: " . $parts[0], Errors::INVALID_OPERANDS_COUNT);
         }
         $args = array();
         for ($i = 0; $i < count($operandTypes); $i++) {
@@ -164,10 +167,6 @@ class InstructionParser implements IInstructionParser
             array_push($args, $arg);
         }
         return $args;
-    }
-
-    public function getCommentsCount() {
-        return $this->commentsCount;
     }
 }
 
@@ -248,38 +247,43 @@ class ArgParser implements IArgParser
     }
 
     private function isType($subject) {
-        return preg_match("/^(int|bool|string)/", $subject);
+        return preg_match("/^(int|bool|string)$/", $subject);
     }
 
     private function isVar($subject) {
-        return preg_match("/^(GF|LF|TF)\@.+/", $subject);
+        $variableRegex = "/^GF@[[:alpha:]" . $this->specialChars . "][[:alnum:]" . $this->specialChars . "]*$/";
+        return preg_match($variableRegex, $subject);
     }
 
     private function isString($subject) {
-        return preg_match("/^string\@.*/", $subject);
+        return preg_match("/^string@(([^\\\#]|\\\\\d{3})+|$)/", $subject);
     }
     
     private function isInt($subject) {
-        return preg_match("/^int\@.+/", $subject);
+        return preg_match("/^int\@.+$/", $subject);
     }
     
     private function isBool($subject) {
-        return preg_match("/^bool\@(true|false)/", $subject);
+        return preg_match("/^bool\@(true|false)$/", $subject);
     }
 
     private function isNil($subject) {
-        return preg_match("/^nil\@nil/", $subject);
+        return preg_match("/^nil\@nil$/", $subject);
     }
 
     private function parseVar($subject) {
-        $operandParts = explode("@", $subject);
-        return strtoupper($operandParts[0]) . "@" . $operandParts[1];
+        preg_match("/(.+)@(.+)/", $subject, $matches);
+        return strtoupper($matches[1]) . "@" . $matches[2];
     }
 
     private function parseVal($subject) {
-        return explode("@", $subject)[1];
+        preg_match("/.+@(.*)/", $subject, $matches);
+        return $matches[1];
     }
+
+    private $specialChars = "_\-\$&%\*!\?";
 }
+ 
 
 class ProgramParser implements IProgramParser
 {
@@ -296,13 +300,13 @@ class ProgramParser implements IProgramParser
         $this->checkProgramHeader();
         $this->program = new Program("IPPcode20");
         $this->loadInstructions();
-        $this->program->setCommentsCount($this->instParser->getCommentsCount());
+        $this->program->setCommentsCount($this->lineReader->getCommentsCount());
         return $this->program;
     }
 
     private function checkProgramHeader() {
-        $inputHeader = $this->lineReader->readNextLine();
-        if ($this->isHeaderValid($inputHeader) == false) {
+        $inputParts = $this->lineReader->readNextLine();
+        if (count($inputParts) != 1 || $this->isHeaderValid($inputParts[0]) == false) {
             throw new Exception("Invalid header", Errors::INVALID_HEADER);
         }
     }
@@ -453,7 +457,7 @@ class XmlProgramSerializer implements IProgramSerializer
     }
 
     private function encodeString($string) {
-        return htmlspecialchars($string, ENT_XML1, 'UTF-8');
+        return htmlspecialchars($string, ENT_XML1 | ENT_QUOTES, 'UTF-8');
     }
 }
 
@@ -489,15 +493,17 @@ class Statistics
     }
 
     private function countLabels($instructions) {
-        $labels = 0;
+        $labels = array();
         foreach ($instructions as $instruction) {
             $args = $instruction->getArgs();
             foreach ($args as $arg) {
-                if ($arg->getType() == ArgType::LABEL)
-                    $labels++;
+                if ($arg->getType() == ArgType::LABEL && 
+                    !in_array($arg->getContent(), $labels)) {
+                    array_push($labels, $arg->getContent());
+                }
             }
         }
-        return $labels;
+        return count($labels);
     }
 
     private function countJumpInstructions($instructions) {
