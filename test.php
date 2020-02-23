@@ -565,15 +565,16 @@ class TestRunner implements ITestRunner
         // check return code
         $hasPassed = $this->checkReturnCode($testCase, $returnCode);
 
-        // check output
+        // diff results
         if ($hasPassed && $returnCode == 0) {
-            
+            $outputFilename =  $testCase->getOutputFilename();
+            $diffCommand = $this->getDiffCommand($outputFilename, $tempOutFilename);
+            exec($diffCommand, $diffOutput, $diffReturnCode);
+            $hasPassed = $diffReturnCode == 0;
         }
 
-        // diff results
-        
         unlink($tempOutFilename); // duplicaed
-        return new TestCaseResult($testCase, false); // duplicated
+        return new TestCaseResult($testCase, $hasPassed); // duplicated
     }
     
     private function getParseCommand($test, $tmpOutFilename) {
@@ -586,11 +587,22 @@ class TestRunner implements ITestRunner
         return "python3 \"{$this->intScript}\" < \"{$srcFile}\" > \"{$tmpOutFilename}\" 2> /dev/null";
     }
 
-    private function getDiffCommand($test) {
-        //return "diff "
+    private function getDiffCommand($file1, $file2) {
+        return "diff \"{$file1}\" \"{$file2}\" 2> /dev/null > /dev/null";
     }
 }
 
+function printHelp() {
+    echo "test.php help:\n";
+    echo "--help                        Prints this help.\n";
+    echo "--verbose                     Prints debug information.\n";
+    echo "--directory PATH              Set the directory containing tests. Default is current.\n";
+    echo "--recursive                   Search tests directory recursively.\n";
+    echo "--parse-script PATH           Set path to parse.php script, default is ./parse.php.\n";
+    echo "--int-script PATH             Set path to interpret.py script, default is ./interpret.py.\n";
+    echo "--int-only                    Run interpret only.\n";
+    echo "--parse-only                  Run parse script only.\n";
+}
 
 try {
     $argsParser = new ArgsParser($argv);
@@ -601,15 +613,20 @@ try {
     $testSuiteReader = new PreprocessTestSuiteReader($testSuiteReader);
     $summaryGenerator = new HtmlSummaryGenerator();
 
-    $testSuites = $testSuiteReader->read();
-
-    $testSuiteResults = array();
-    foreach ($testSuites as $testSuite) {
-        $testSuiteResult = $testRunner->runTestSuite($testSuite);
-        array_push($testSuiteResults, $testSuiteResult);
+    if ($args->help) {
+        printHelp();
     }
+    else {
+        $testSuites = $testSuiteReader->read();
 
-    $summaryGenerator->generate($testSuiteResults);    
+        $testSuiteResults = array();
+        foreach ($testSuites as $testSuite) {
+            $testSuiteResult = $testRunner->runTestSuite($testSuite);
+            array_push($testSuiteResults, $testSuiteResult);
+        }
+
+        $summaryGenerator->generate($testSuiteResults);   
+    } 
 }
 catch (Exception $e) {
     error_log($e->getMessage());
