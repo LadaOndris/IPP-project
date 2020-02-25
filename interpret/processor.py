@@ -1,4 +1,7 @@
 
+from .operand import *
+from .return_codes import *
+
 class Instruction:
     
     def __init__(self, operands, expectedOperands, processor):
@@ -9,50 +12,44 @@ class Instruction:
         
     def __checkOperands(self):
         if len(self.operands) != len(self.expectedOperands):
-            raise Exception("Operands don't match")
+            raise InterpretException("Operands don't match", ReturnCodes.INVALID_INPUT)
+        for given, expected in zip(self.operands, self.expectedOperands):
+            if not isinstance(given, expected):
+                raise InterpretException("Operands don't match", ReturnCodes.INVALID_INPUT)
         
-    def getArgumentValueAndType(self, argument):
-        if argument.type == 'var':
-            variable = self.processor.frameModel.getVariable(argument.value)
-            return variable.value, variable.type
-        else:
-            return argument.value, argument.type
-            
     def execute(self):
-        pass
+        raise NotImplementedError('Abstract method')
     
 class DefvarInstruction(Instruction):
     
     def __init__(self, operands, processor):
-        expectedOperands = ['var']
+        expectedOperands = [ VariableOperand ]
         Instruction.__init__(self, operands, expectedOperands, processor)
         
     def execute(self):
-        self.processor.frameModel.defvar(self.operands[0])
+        self.processor.frameModel.defvar(self.operands[0].getFrameName())
 
 class MoveInstruction(Instruction):
     
     def __init__(self, operands, processor):
-        expectedOperands = ['var', 'symb']
+        expectedOperands = [ VariableOperand, SymbolOperand ]
         Instruction.__init__(self, operands, expectedOperands, processor)
         
     def execute(self):        
         destinationOperand = self.operands[0]
         sourceOperand = self.operands[1]
-        value, type = self.__getArgumentValueAndType(sourceOperand)
-        variable = self.processor.frameModel.getVariable(destinationOperand.value)
-        variable.set(value, type)
+        variable = self.processor.frameModel.getVariable(destinationOperand.getFrameName())
+        variable.set(sourceOperand.getValue(), sourceOperand.getType())
     
 class WriteInstruction(Instruction):
     
     def __init__(self, operands, processor):
-        expectedOperands = ['symb']
+        expectedOperands = [ SymbolOperand ]
         Instruction.__init__(self, operands, expectedOperands, processor)
         
     def execute(self):
         sourceOperand = self.operands[0]
-        value, type = self.getArgumentValueAndType(sourceOperand)
-        self.__writeValue(value, type)
+        self.__writeValue(sourceOperand.getValue(), sourceOperand.getType())
         
     def __writeValue(self, value, type):
         if type == 'bool':
@@ -62,20 +59,20 @@ class WriteInstruction(Instruction):
         elif type == 'int' or type == 'string':
             print(value, end='')
         else:
-            raise Exception("Invalid argument type")
+            raise InterpretException("Invalid argument type", ReturnCodes.INVALID_INPUT)
             
 class ReadInstruction(Instruction):
     
     def __init__(self, operands, processor):
-        expectedOperands = ['symb', 'type']
+        expectedOperands = [ SymbolOpernad, TypeOperand]
         Instruction.__init__(self, operands, expectedOperands, processor)
         
     def execute(self):
         toOperand = self.operands[0]
         typeOperand = self.operands[1]
-        variable = self.processor.frameModel.getVariable(toOperand.value)
-        value = self.__readValue(typeOperand.value)
-        variable.set(value, typeOperand.value)
+        variable = self.processor.frameModel.getVariable(toOperand.getFrameName())
+        value = self.__readValue(typeOperand.getValue())
+        variable.set(value, typeOperand.getValue())
     
     def __readValue(self, type):
         value = input()
@@ -88,7 +85,7 @@ class ReadInstruction(Instruction):
             return value.lower() == 'true'
         if type == 'string':
             return value
-        raise Exception("Invalid type: " + type)
+        raise InterpretException("Invalid type: " + type, ReturnCodes.INVALID_INPUT)
 
 class CreateframeInstruction(Instruction):
     
@@ -120,12 +117,12 @@ class PopframeInstruction(Instruction):
 class CallInstruction(Instruction):
     
     def __init__(self, operands, processor):
-        expectedOperands = ['label']
+        expectedOperands = [ LabelOperand ]
         Instruction.__init__(self, operands, expectedOperands, processor)
         
     def execute(self):
         self.processor.instructionCounter.pushCallstack()
-        self.processor.instructionCounter.jumpTo(self.operands[0].value)
+        self.processor.instructionCounter.jumpTo(self.operands[0].getValue())
    
 class ReturnInstruction(Instruction):
     
@@ -139,30 +136,91 @@ class ReturnInstruction(Instruction):
 class LabelInstruction(Instruction):
     
     def __init__(self, operands, processor):
-        expectedOperands = ['label']
+        expectedOperands = [ LabelOperand ]
         Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        pass
         
 class JumpInstruction(Instruction):
     
     def __init__(self, operands, processor):
-        expectedOperands = ['label']
+        expectedOperands = [ LabelOperand ]
         Instruction.__init__(self, operands, expectedOperands, processor)
         
     def execute(self):
-        self.processor.instructionCounter.jumpTo(self.operands[0].value)
+        label = self.operands[0].getValue()
+        self.processor.instructionCounter.jumpTo(label)
     
+class JumpifeqInstruction(Instruction):
     
+    def __init__(self, operands, processor):
+        expectedOperands = [ LabelOperand, SymbolOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        label = self.operands[0].getValue()
+        op1type = self.operands[1].getType()
+        op2type = self.operands[2].getType()
+        if op1type != op2type and op1type != 'nil' and op2type != 'nil':
+            raise InterpretException('Types differ', ReturnCodes.BAD_OPERANDS)
+        if self.operands[1].getValue() == self.operands[2].getValue():
+            self.processor.instructionCounter.jumpTo(label)
+
+class JumpifneqInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ LabelOperand, SymbolOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        label = self.operands[0].getValue()
+        op1type = self.operands[1].getType()
+        op2type = self.operands[2].getType()
+        if op1type != op2type and op1type != 'nil' and op2type != 'nil':
+            raise InterpretException('Types differ', ReturnCodes.BAD_OPERANDS)
+        if self.operands[1].getValue() != self.operands[2].getValue():
+            self.processor.instructionCounter.jumpTo(label)
+
+class ExitInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        exitCode = self.operands[0].getValue()
+        if exitCode >= 0 and exitCode <= 49:
+            self.processor.stop(exitCode)
+        else:
+            raise InterpretException('Invalid exit code', ReturnCodes.BAD_OPERAND_VALUE)
+
+class TypeInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):  
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        type = self.operands[1].getType()
+        if type == None:
+            type = ''
+        variable.set(type, 'string')
+        
 class Processor:
     
-    def __init__(self, frameModel):
+    def __init__(self, frameModel, operandFactory):
         self.frameModel = frameModel
+        self.__operandFactory = operandFactory
         self.instructionCounter = InstructionCounter()
+        self.__stopCode = None
         
     def execute(self, rawInstructions):
         self.__createInstructions(rawInstructions)
         self.instructionCounter.setInstructions(self.instructions)
     
-        while self.instructionCounter.nextInstruction():
+        while self.instructionCounter.nextInstruction() and self.__stopCode == None:
             self.instructionCounter.executeCurrentInstruction()
         
     def __createInstructions(self, rawInstructions):
@@ -171,12 +229,23 @@ class Processor:
             instruction = self.__createInstruction(rawInstr.opcode, rawInstr.arguments)
             self.instructions.append(instruction)
         
-    def __createInstruction(self, opcode, operands):
+    def __createInstruction(self, opcode, rawOperands):
+        operands = self.__createOperands(rawOperands)
         className = opcode.capitalize() + "Instruction"
         try:
             return eval(className)(operands, self)
         except NameError:
-            raise Exception('Unknown opcode')
+            raise InterpretException('Unknown opcode', ReturnCodes.INVALID_INPUT)
+    
+    def __createOperands(self, rawOperands):
+        operands = []
+        for rawOperand in rawOperands:
+            operand = self.__operandFactory.create(rawOperand)
+            operands.append(operand)
+        return operands
+            
+    def stop(self, code):
+        self.__stopCode = code;
  
 class InstructionCounter:
     
@@ -193,9 +262,9 @@ class InstructionCounter:
         labels = {}
         for index, instr in enumerate(self.instructions):
             if isinstance(instr, LabelInstruction):
-                label = instr.operands[0].value
+                label = instr.operands[0].getValue()
                 if label in labels:
-                    raise Exception('Label already exists')
+                    raise InterpretException('Label already exists', ReturnCodes.BAD_OPERAND_VALUE)
                 labels[label] = index
         self.labels = labels
                         
@@ -221,14 +290,14 @@ class InstructionCounter:
     
     def popCallstack(self):
         if len(self.callStack) == 0:
-            raise Exception('Callstack is empty', 56)
+            raise InterpretException('Callstack is empty', ReturnCodes.MISSING_VALUE)
         self.__counter = self.callStack.pop()
         
     def jumpTo(self, label):
         if not label in self.labels:
-            raise Exception('Label doesnt exist')
+            raise InterpretException('Label doesnt exist', ReturnCodes.BAD_OPERAND_VALUE)
         self.__counter = self.labels[label] 
-        
+    
         
     
     

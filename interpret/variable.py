@@ -1,12 +1,11 @@
 
 
-class Variable:
+class FrameVariable:
     
-    def __init__(self, name, frame, value = None, type = None):
+    def __init__(self, name):
         self.name = name
-        self.frame = frame
-        self.value = value
-        self.type = type
+        self.value = None
+        self.type = None
         
     def set(self, value, type):
         self.value = value

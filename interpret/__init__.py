@@ -5,3 +5,5 @@ from .frame import *
 from .instruction import *
 from .program import *
 from .argument import *
+from .operand import *
+from .return_codes import *

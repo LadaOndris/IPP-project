@@ -1,6 +1,6 @@
 
-from .frame import Frame
-from .variable import Variable
+from .frame import *
+from .variable import *
 
 class FrameModel:
     def __init__(self):
@@ -11,8 +11,8 @@ class FrameModel:
     """
     Expects a parameter such as GF@var
     """
-    def getVariable(self, variable):
-        frameName, variableIdentifier = self.__parseVariableName(variable)
+    def getVariable(self, variableFrameName):
+        frameName, variableIdentifier = self.__parseVariableName(variableFrameName)
         frame = self.__getFrame(frameName)
         return frame.getVariable(variableIdentifier)
     
@@ -29,10 +29,10 @@ class FrameModel:
         else:
             raise Exception("Unknown frame")
     
-    def defvar(self, argument):
-        frameName, variableIdentifier = self.__parseVariableName(argument.value)
+    def defvar(self, variableFrameName):
+        frameName, variableIdentifier = self.__parseVariableName(variableFrameName)
         frame = self.__getFrame(frameName)
-        variable = Variable(variableIdentifier, frameName)
+        variable = FrameVariable(variableIdentifier)
         frame.addVariable(variable)
         
     def resetTemporaryFrame():

@@ -1,0 +1,6 @@
+DEFVAR GF@type
+DEFVAR GF@none
+TYPE GF@type GF@none
+WRITE GF@type
+TYPE GF@type int@6
+WRITE GF@type
