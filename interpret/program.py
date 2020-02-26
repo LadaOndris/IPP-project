@@ -16,8 +16,11 @@ class Program:
         instructions = []
         for child in root:
             arguments = self.__parseArguments(child)
-            instr = Instruction(child.attrib['opcode'], arguments)
+            opcode = child.attrib['opcode']
+            order = int(child.attrib['order'])
+            instr = Instruction(opcode, arguments, order)
             instructions.append(instr)
+        instructions.sort()
         self.instructions = instructions    
         
     def __parseArguments(self, instructionElement):

@@ -1,6 +1,7 @@
 
 from .operand import *
 from .return_codes import *
+import fileinput
 
 class Instruction:
     
@@ -64,7 +65,7 @@ class WriteInstruction(Instruction):
 class ReadInstruction(Instruction):
     
     def __init__(self, operands, processor):
-        expectedOperands = [ SymbolOpernad, TypeOperand]
+        expectedOperands = [ SymbolOperand, TypeOperand]
         Instruction.__init__(self, operands, expectedOperands, processor)
         
     def execute(self):
@@ -75,7 +76,12 @@ class ReadInstruction(Instruction):
         variable.set(value, typeOperand.getValue())
     
     def __readValue(self, type):
-        value = input()
+        fileName = self.processor.getInputFile()
+        if fileName == None:
+            value = input()
+        else:
+            with open() as file:
+                value = file.readline()
         return self.__convertToType(value, type)
         
     def __convertToType(self, value, type):
@@ -208,13 +214,330 @@ class TypeInstruction(Instruction):
             type = ''
         variable.set(type, 'string')
         
+class ConcatInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        if self.__areOperandTypesOk():
+            newstr = self.__getConcatenatedString()
+            variable.set(newstr, 'string')
+        else:
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERAND_VALUE)
+    
+    def __areOperandTypesOk(self):
+        return self.operands[1].getType() == 'string' and \
+            self.operands[2].getType() == 'string'
+    
+    def __getConcatenatedString(self):
+        return self.operands[1].getValue() + self.operands[2].getValue()
+    
+class StrlenInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):  
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        if self.__isOperandTypeOk():
+            variable.set(len(self.operands[1].getValue()), 'int')
+        else:
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERAND_VALUE)
+            
+    def __isOperandTypeOk(self):
+        return self.operands[1].getType() == 'string'
+    
+class GetcharInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):  
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        if self.operands[2].getType() == 'int' and self.operands[1].getType() == 'string':
+            string = self.operands[1].getValue()
+            index = self.operands[2].getValue() 
+            if index < 0 or index >= len(string):
+                raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+            variable.set(string[index], 'string')
+        else:
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERAND_VALUE)
+    
+class SetcharInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):  
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        if self.operands[0].getType() == 'string' and \
+           self.operands[1].getType() == 'int' and \
+           self.operands[2].getType() == 'string':
+           string = self.operands[0].getValue()
+           index = self.operands[1].getValue()
+           sourceString = self.operands[2].getValue()
+           if index < 0 or index >= len(string) or len(sourceString) == 0:
+               raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+           string[index] = sourceString[0]     
+           variable.set(string, 'string')
+        else:
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERAND_VALUE)
+
+class Int2charInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):  
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        if self.operands[1].getType() == 'int':
+            ordinal = self.operands[1].getValue()
+            try:
+                char = chr(ordinal)
+            except ValueError:
+                raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+            variable.set(char, 'string')
+        else:
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERAND_VALUE)
+
+class Str2intInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):  
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        if self.operands[1].getType() == 'string' and self.operands[2].getType() == 'int':
+            string = self.operands[1].getValue()
+            index = self.operands[2].getValue()
+            if index < 0 or index >= len(string):
+                raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+            ordinal = ord(string[index])
+            variable.set(ordinal, 'int')
+        else:
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERAND_VALUE)
+
+class DprintInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        print(self.operands[0].getValue(), file=sys.error) # todo
+
+class ArithmeticInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        if self.operands[1].getType() != 'int' or self.operands[2].getType() != 'int':
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERAND_VALUE)
+
+class AddInstruction(ArithmeticInstruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(self, operands, processor)
+        
+    def execute(self):
+        super().execute(self)
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        val1 = self.operands[1].getValue()
+        val2 = self.operands[2].getValue()
+        variable.set(val1 + val2, 'int')
+        
+class SubInstruction(ArithmeticInstruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(self, operands, processor)
+        
+    def execute(self):
+        super().execute(self)
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        val1 = self.operands[1].getValue()
+        val2 = self.operands[2].getValue()
+        variable.set(val1 - val2, 'int')        
+        
+class MulInstruction(ArithmeticInstruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(self, operands, processor)
+        
+    def execute(self):
+        super().execute(self)
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        val1 = self.operands[1].getValue()
+        val2 = self.operands[2].getValue()
+        variable.set(val1 * val2, 'int')    
+        
+class DivInstruction(ArithmeticInstruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(self, operands, processor)
+        
+    def execute(self):
+        super().execute(self)
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        val1 = self.operands[1].getValue()
+        val2 = self.operands[2].getValue()
+        if val2 == 0:
+            raise InterpretException("Cannot divide by 0", ReturnCodes.BAD_OPERAND_VALUE)
+        variable.set(ival1 // val2, 'int')    
+
+class ArithmeticInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        if self.operands[1].getType() != 'int' or self.operands[2].getType() != 'int':
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERAND_VALUE)
+
+        
+class PushsInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ SymbolOperand ]
+        super().__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):        
+        value = self.operands[0].getValue()
+        type = self.operands[0].getType()
+        self.processor.pushToStack((value, type))
+        
+class PopsInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ SymbolOperand ]
+        super().__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):        
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        value, type = self.processor.popFromStack()
+        variable.set(value, type)
+
+class RelationalInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand, SymbolOperand ]
+        super().__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self): 
+        type1
+        if type1 == 'nil' or type2 == 'nil':
+            return
+        if type1 == type2:
+            return
+        raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+    
+class LtInstruction(RelationalInstruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(self, operands, processor)
+        
+    def execute(self): 
+        super().execute(self)
+        if self.operands[1].getType() == 'nil' or self.operands[2].getType() == 'nil':
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        value1 = self.operands[1].getValue()
+        value2 = self.operands[2].getValue()
+        variable.set(value1 < value2, 'bool')
+    
+class GtInstruction(RelationalInstruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(self, operands, processor)
+        
+    def execute(self): 
+        super().execute(self)
+        if self.operands[1].getType() == 'nil' or self.operands[2].getType() == 'nil':
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        value1 = self.operands[1].getValue()
+        value2 = self.operands[2].getValue()
+        variable.set(value1 > value2, 'bool')
+        
+class EqInstruction(RelationalInstruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(self, operands, processor)
+        
+    def execute(self): 
+        super().execute(self)
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        value1 = self.operands[1].getValue()
+        value2 = self.operands[2].getValue()
+        variable.set(value1 == value2, 'bool')
+        
+class AndInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand, SymbolOperand ]
+        super().__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        type1 = self.operands[1].getType()
+        type2 = self.operands[2].getType()
+        if type1 != 'bool' or type2 != 'bool':
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        value1 = self.operands[1].getValue()
+        value2 = self.operands[2].getValue()
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        variable.set(value1 and value2, 'bool')
+
+class OrInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand, SymbolOperand ]
+        super().__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        type1 = self.operands[1].getType()
+        type2 = self.operands[2].getType()
+        if type1 != 'bool' or type2 != 'bool':
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        value1 = self.operands[1].getValue()
+        value2 = self.operands[2].getValue()
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        variable.set(value1 or value2, 'bool')
+        
+class NotInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand ]
+        super().__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        type1 = self.operands[1].getType()
+        if type1 != 'bool':
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        value1 = self.operands[1].getValue()
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        variable.set(not value1, 'bool')
+            
 class Processor:
     
-    def __init__(self, frameModel, operandFactory):
+    def __init__(self, frameModel, operandFactory, inputFile):
         self.frameModel = frameModel
         self.__operandFactory = operandFactory
+        self.__inputFile = inputFile
         self.instructionCounter = InstructionCounter()
         self.__stopCode = None
+        self.__dataStack = []
         
     def execute(self, rawInstructions):
         self.__createInstructions(rawInstructions)
@@ -235,7 +558,7 @@ class Processor:
         try:
             return eval(className)(operands, self)
         except NameError:
-            raise InterpretException('Unknown opcode', ReturnCodes.INVALID_INPUT)
+            raise InterpretException(F"Unknown opcode {opcode}", ReturnCodes.INVALID_INPUT)
     
     def __createOperands(self, rawOperands):
         operands = []
@@ -246,6 +569,17 @@ class Processor:
             
     def stop(self, code):
         self.__stopCode = code;
+        
+    def pushToStack(self, valueType):
+        self.__dataStack.push(valueType)
+    
+    def popFromStack(self):
+        if len(self.__dataStack) == 0:
+            raise InterpretException('Empty data stack', ReturnCodes.MISSING_VALUE)
+        return self.__dataStack.pop()
+
+    def getInputFile(self):
+        return self.__inputFile
  
 class InstructionCounter:
     

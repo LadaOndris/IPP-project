@@ -27,7 +27,7 @@ class FrameModel:
         elif frameName == "TF":
             return self.temporaryFrame
         else:
-            raise Exception("Unknown frame")
+            raise InterpretException("Unknown frame", ReturnCodes.INVALID_FRAME)
     
     def defvar(self, variableFrameName):
         frameName, variableIdentifier = self.__parseVariableName(variableFrameName)
@@ -39,7 +39,9 @@ class FrameModel:
         self.temporaryFrame = Frame()
     
     def pushTempFrameToLocalFrameStack():
-        self.localFrameStack.append(self.temporaryFrame)
+        self.localFrameStack.push(self.temporaryFrame)
     
     def popFromLocalFrameStackToTempFrame():
+        if len(self.localFrameStack) == 0:
+            raise InterpretException('Empty frame stack', ReturnCodes.INVALID_FRAME)
         self.temporaryFrame = self.localFrameStack.pop()
