@@ -1,0 +1,7 @@
+.IPPcode20
+JUMP fooend
+LABEL foo
+WRITE string@Oh,yeah,motherfucker!
+RETURN
+LABEL fooend
+CALL foo

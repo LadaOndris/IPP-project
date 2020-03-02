@@ -1,0 +1,7 @@
+.IPPcode20
+DEFVAR GF@type
+DEFVAR GF@none
+TYPE GF@type GF@none
+WRITE GF@type       # prints empty string
+TYPE GF@type int@6
+WRITE GF@type       # prints "int"

@@ -184,11 +184,8 @@ class ArgParser implements IArgParser
                     return $this->newVarArg($actualArgument);
                 break;
             case ArgType::LABEL:
-                return new Argument(ArgType::LABEL, $actualArgument);
-                break;
-            case ArgType::NIL:
-                if ($this->isNil($actualArgument))
-                    return $this->newNilArg($actualArgument);
+                if ($this->isLabel($actualArgument))
+                    return new Argument(ArgType::LABEL, $actualArgument);
                 break;
             case ArgType::SYMB: {
                 if ($this->isVar($actualArgument)) {
@@ -211,10 +208,10 @@ class ArgParser implements IArgParser
                 }
             } break;
             default: {
-                throw new Exception("Undefined ArgType value.", Errors::INVALID_ARGUMENT_TYPE);
+                throw new Exception("Invalid ArgType value: " . $expectedArgumentType, Errors::INVALID_ARGUMENT_TYPE);
             }
         }
-        throw new Exception("Invalid ArgType value.", Errors::INVALID_ARGUMENT_TYPE);
+        throw new Exception("Invalid ArgType value: " . $expectedArgumentType, Errors::INVALID_ARGUMENT_TYPE);
     }
 
     private function newTypeArg($actualArgument) {
@@ -250,13 +247,20 @@ class ArgParser implements IArgParser
         return preg_match("/^(int|bool|string)$/", $subject);
     }
 
+    private function isLabel($subject) {
+        $identifierRegex = ArgParser::IDENTIFIER_REGEX;
+        $labelRegex = "/^{$identifierRegex}$/";
+        return preg_match($labelRegex, $subject);
+    }
+
     private function isVar($subject) {
-        $variableRegex = "/^GF@[[:alpha:]" . $this->specialChars . "][[:alnum:]" . $this->specialChars . "]*$/";
+        $identifierRegex = ArgParser::IDENTIFIER_REGEX;
+        $variableRegex = "/^(GF|LF|TF)@{$identifierRegex}$/";
         return preg_match($variableRegex, $subject);
     }
 
     private function isString($subject) {
-        return preg_match("/^string@(([^\\\#]|\\\\\d{3})+|$)/", $subject);
+        return preg_match("/^string@([^\\\]|\\\(\d{3}))*$/", $subject);
     }
     
     private function isInt($subject) {
@@ -281,7 +285,8 @@ class ArgParser implements IArgParser
         return $matches[1];
     }
 
-    private $specialChars = "_\-\$&%\*!\?";
+    private const SPECIAL_CHARS = "_\-\$&%\*!\?";
+    private const IDENTIFIER_REGEX = "[[:alpha:]" . ArgParser::SPECIAL_CHARS . "][[:alnum:]" . ArgParser::SPECIAL_CHARS . "]*";
 }
  
 
@@ -306,13 +311,13 @@ class ProgramParser implements IProgramParser
 
     private function checkProgramHeader() {
         $inputParts = $this->lineReader->readNextLine();
-        if (count($inputParts) != 1 || $this->isHeaderValid($inputParts[0]) == false) {
+        if ($inputParts == NULL || count($inputParts) != 1 || $this->isHeaderValid($inputParts[0]) == false) {
             throw new Exception("Invalid header", Errors::INVALID_HEADER);
         }
     }
 
     private function isHeaderValid($header) {
-        return trim($header) == '.IPPcode20';
+        return strtoupper(trim($header)) == '.IPPCODE20';
     }
 
     private function loadInstructions() {
@@ -457,7 +462,7 @@ class XmlProgramSerializer implements IProgramSerializer
     }
 
     private function encodeString($string) {
-        return htmlspecialchars($string, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        return $string; //htmlspecialchars($string, ENT_XML1 | ENT_QUOTES, 'UTF-8');
     }
 }
 

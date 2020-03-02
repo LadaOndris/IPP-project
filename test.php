@@ -23,6 +23,7 @@ class ArgsParser
 
         for ($i = 1; $i < count($this->argv); $i++) {
             switch ($this->argv[$i]) {
+                case "--verbose":  $args->verbose = true; break;
                 case "--help":  $args->help = true; break;
                 case "--recursive": $args->recursive = true; break;
                 case "--parse-only": $args->parseOnly = true; $isParseOnlySet = true; break;
@@ -31,17 +32,21 @@ class ArgsParser
                     $arg = $this->argv[$i];
                     if ($this->isFileArgument("directory", $arg)) {
                         $args->directory = $this->parseFileArgument($arg);
+                        $this->checkDirectoryExists($args->directory, "--directory");
                     }
                     else if ($this->isFileArgument("parse-script", $arg)) {
                         $args->parseScript = $this->parseFileArgument($arg);
+                        $this->checkFileExists($args->parseScript, "--parse-only");
                         $isParseScriptSet = true;
                     }
                     else if ($this->isFileArgument("int-script", $arg)) {
                         $args->intScript = $this->parseFileArgument($arg);
+                        $this->checkFileExists($args->intScript, "--int-only");
                         $isIntScriptSet = true;
                     }
-                    else if ($this->isFileArgument("jexamxml-script", $arg)) {
+                    else if ($this->isFileArgument("jexamxml", $arg)) {
                         $args->jexamxml = $this->parseFileArgument($arg);
+                        $this->checkFileExists($args->jexamxml, "--jexamxml");
                     }
                     else {
                         throw new Exception("Invalid argument: " . $arg, Errors::INVALID_ARGUMENT);
@@ -58,7 +63,37 @@ class ArgsParser
         if ($args->help && count($this->argv) > 2) {
             throw new Exception("Parameter --help cannot be combined with any other.", Errors::INVALID_COMBINATION_OF_PARAMS);
         }
+        if ($args->parseOnly) {
+            $this->checkFileExists($args->parseScript, "--parse-only");
+            $this->checkFileExists($args->jexamxml, "--jexamxml");
+        }
+        else if ($args->intOnly) {
+            $this->checkFileExists($args->intScript, "--int-only");
+        }
+        else {
+            $this->checkFileExists($args->parseScript, "--parse-only");
+            $this->checkFileExists($args->intScript, "--int-only");
+            $this->checkFileExists($args->jexamxml, "--jexamxml");
+        }
         return $args;
+    }
+
+    private function checkFileExists($file, $optionName) {
+        if (!$this->fileExists($file))
+            throw new Exception("Option {$optionName} is invalid. '{$file}' is not a file.", Errors::INVALID_ARGUMENT);
+    }
+
+    private function checkDirectoryExists($dir, $optionName) {
+        if (!$this->directoryExists($dir))
+            throw new Exception("Option {$optionName} is invalid. '{$dir}' is not a directory.", Errors::INVALID_ARGUMENT);
+    }
+
+    private function fileExists($file) {
+        return file_exists($file) and !is_dir($file);
+    }
+
+    private function directoryExists($directory) {
+        return file_exists($directory) and is_dir($directory);
     }
 
     private function isFileArgument($argumentName, $argument) {
@@ -73,6 +108,7 @@ class ArgsParser
 class Args
 {
     public $help = false;
+    public $verbose = false;
     public $directory = ".";
     public $recursive = false;
     public $parseScript = "./parser.php";
@@ -332,13 +368,7 @@ class HtmlSummaryGenerator implements ISummaryGenerator
         $header = $this->generateHeader();
         $testSuiteBlocks = $this->generateTestSuiteBlocks();
         $html = $this->fillTemplate($header . $testSuiteBlocks);
-        file_put_contents("test_report.html", $html);
-
-        // foreach ($testSuiteResults as $testSuiteResult) {
-        //     echo "TestSuite \"{$testSuiteResult->getTestSuite()->getDirectory()}\"\n";
-        //     echo "Passed: {$testSuiteResult->getTotalPassed()}\n";
-        //     echo "Failed: {$testSuiteResult->getTotalFailed()}\n";
-        // }
+        echo $html;
     }
 
     private function fillTemplate($content) {
@@ -500,13 +530,17 @@ class TestRunner implements ITestRunner
     private $parseOnly;
     private $intScript;
     private $intOnly;
+    private $jexamxml;
     private $directory;
+    private $verbose;
 
-    public function __construct($parseScript, $parseOnly, $intScript, $intOnly) {
+    public function __construct($parseScript, $parseOnly, $intScript, $intOnly, $jexamxml, $verbose) {
         $this->parseScript = $parseScript;
         $this->parseOnly = $parseOnly;
         $this->intScript = $intScript;
         $this->intOnly = $intOnly;
+        $this->jexamxml = $jexamxml;
+        $this->verbose = $verbose;
     }
 
     public function runTestSuite(TestSuite $testSuite) {
@@ -521,7 +555,8 @@ class TestRunner implements ITestRunner
     }
 
     public function runTest(TestCase $test) {
-        error_log("Running test {$test->getName()}");
+        if ($this->verbose)
+            error_log("Running test {$test->getPathname()}");
         if ($this->parseOnly) {
             return $this->testParseOnly($test);
         }
@@ -531,6 +566,8 @@ class TestRunner implements ITestRunner
         else {
             throw new Exception("Unimplemented exception");
         }
+        if ($this->verbose)
+            error_log("\n");
     }
 
     private function testParseOnly(TestCase $testCase) {
@@ -539,20 +576,44 @@ class TestRunner implements ITestRunner
         // run parser
         $parseCommand = $this->getParseCommand($testCase, $tempOutFilename);
         exec($parseCommand, $output, $returnCode);
+        $output = implode("\n", $output);
 
         $hasPassed = $this->checkReturnCode($testCase, $returnCode);
 
+        if (!$hasPassed && $this->verbose) {
+            error_log("parse.php return code: {$returnCode}, expected: {$this->getExpectedReturnCode($testCase)}");
+            error_log("parse.php output: \n{$output}");
+        }
+
         if ($hasPassed && $returnCode == 0) {
             # run JExamlXml
+            $xmlDifCommand = $this->getJexamxmlCommand($testCase, $tempOutFilename);
+            exec($xmlDifCommand, $xmlDifOutput, $xmlDifReturnCode);
+            $xmlDifOutput = implode("\n", $xmlDifOutput);
+
+            $hasPassed = $xmlDifReturnCode == 0;
+
+            if (!$hasPassed && $this->verbose) {
+                error_log("jexamxml return code: {$xmlDifReturnCode}, expected: 0");
+                $expectedParseOutput = file_get_contents($testCase->getOutputFilename());
+                $actualParseOutput = file_get_contents($tempOutFilename);
+                error_log("actual parse output: \n{$actualParseOutput}");
+                error_log("expcted parse output: \n{$expectedParseOutput}");
+                //error_log("jexamxml output: \n{$xmlDifOutput}");
+            }
         }
+
         unlink($tempOutFilename);
         return new TestCaseResult($testCase, $hasPassed);
     }
 
     private function checkReturnCode(TestCase $testCase, $returnCode) {
+        return $returnCode == $this->getExpectedReturnCode($testCase);    
+    }
+
+    private function getExpectedReturnCode(TestCase $testCase) {
         $rcFilename =  $testCase->getReturnCodeFilename();
-        $expectedReturnCode = file_get_contents($rcFilename);
-        return $returnCode == $expectedReturnCode;    
+        return file_get_contents($rcFilename);
     }
 
     private function testInterpretOnly(TestCase $testCase) {
@@ -578,13 +639,18 @@ class TestRunner implements ITestRunner
     }
     
     private function getParseCommand($test, $tmpOutFilename) {
-        $srcFile =  $test->getSourceFilename();
-        return "php \"{$this->parseScript}\" < \"{$srcFile}\" > \"{$tmpOutFilename}\" 2> /dev/null";
+        $srcFilename =  $test->getSourceFilename();
+        return "php \"{$this->parseScript}\" < \"{$srcFilename}\" > \"{$tmpOutFilename}\" ";
+    }
+
+    private function getJexamxmlCommand($test, $tmpOutFilename) {
+        $outFilename =  $test->getOutputFilename();
+        return "java -jar \"{$this->jexamxml}\" \"{$outFilename}\" \"{$tmpOutFilename}\" 2> /dev/null";
     }
 
     private function getInterpretCommand($test, $tmpOutFilename) {
-        $srcFile =  $test->getSourceFilename();
-        return "python3 \"{$this->intScript}\" < \"{$srcFile}\" > \"{$tmpOutFilename}\" 2> /dev/null";
+        $srcFilename =  $test->getSourceFilename();
+        return "python3 \"{$this->intScript}\" < \"{$srcFilename}\" > \"{$tmpOutFilename}\" 2> /dev/null";
     }
 
     private function getDiffCommand($file1, $file2) {
@@ -595,20 +661,21 @@ class TestRunner implements ITestRunner
 function printHelp() {
     echo "test.php help:\n";
     echo "--help                        Prints this help.\n";
-    echo "--verbose                     Prints debug information.\n";
+    echo "--verbose                     Prints information about failed tests.\n";
     echo "--directory PATH              Set the directory containing tests. Default is current.\n";
     echo "--recursive                   Search tests directory recursively.\n";
     echo "--parse-script PATH           Set path to parse.php script, default is ./parse.php.\n";
     echo "--int-script PATH             Set path to interpret.py script, default is ./interpret.py.\n";
     echo "--int-only                    Run interpret only.\n";
     echo "--parse-only                  Run parse script only.\n";
+    echo "--jexamxml PATH               Set path to jexamxml.jar script for xml comparison, default is /pub/courses/ipp/jexamxml/jexamxml.jar.\n";
 }
 
 try {
     $argsParser = new ArgsParser($argv);
     $args = $argsParser->parse();
     
-    $testRunner = new TestRunner($args->parseScript, $args->parseOnly, $args->intScript, $args->intOnly);
+    $testRunner = new TestRunner($args->parseScript, $args->parseOnly, $args->intScript, $args->intOnly, $args->jexamxml, $args->verbose);
     $testSuiteReader = new DirectoryTestSuiteReader($args->directory, $args->recursive);
     $testSuiteReader = new PreprocessTestSuiteReader($testSuiteReader);
     $summaryGenerator = new HtmlSummaryGenerator();
