@@ -6,6 +6,8 @@ class Frame:
         self.variables = {}
     
     def addVariable(self, variable):
+        if variable.name in self.variables:
+            raise InterpretException("Redefinition of variable", ReturnCodes.SEMANTIC_ERROR)
         self.variables[variable.name] = variable
         
     def getVariable(self, variableIdentifier):

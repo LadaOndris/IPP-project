@@ -347,10 +347,10 @@ class ArithmeticInstruction(Instruction):
 class AddInstruction(ArithmeticInstruction):
     
     def __init__(self, operands, processor):
-        super().__init__(self, operands, processor)
+        super().__init__(operands, processor)
         
     def execute(self):
-        super().execute(self)
+        super().execute()
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         val1 = self.operands[1].getValue()
         val2 = self.operands[2].getValue()
@@ -359,10 +359,10 @@ class AddInstruction(ArithmeticInstruction):
 class SubInstruction(ArithmeticInstruction):
     
     def __init__(self, operands, processor):
-        super().__init__(self, operands, processor)
+        super().__init__(operands, processor)
         
     def execute(self):
-        super().execute(self)
+        super().execute()
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         val1 = self.operands[1].getValue()
         val2 = self.operands[2].getValue()
@@ -371,10 +371,10 @@ class SubInstruction(ArithmeticInstruction):
 class MulInstruction(ArithmeticInstruction):
     
     def __init__(self, operands, processor):
-        super().__init__(self, operands, processor)
+        super().__init__(operands, processor)
         
     def execute(self):
-        super().execute(self)
+        super().execute()
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         val1 = self.operands[1].getValue()
         val2 = self.operands[2].getValue()
@@ -383,10 +383,10 @@ class MulInstruction(ArithmeticInstruction):
 class DivInstruction(ArithmeticInstruction):
     
     def __init__(self, operands, processor):
-        super().__init__(self, operands, processor)
+        super().__init__(operands, processor)
         
     def execute(self):
-        super().execute(self)
+        super().execute()
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         val1 = self.operands[1].getValue()
         val2 = self.operands[2].getValue()

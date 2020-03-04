@@ -598,6 +598,16 @@ class Args {
     public $statsFile = NULL;
 }
 
+function printHelp() {
+    echo "parse.php help:\n";
+    echo "--help                        Prints this help.\n";
+    echo "--stats PATH                  Set the file name to print the statistics into.\n";
+    echo "--loc                         Include number of instructions in statistics.\n";
+    echo "--comments                    Include number of comments in statistics.\n";
+    echo "--labels                      Include number of labels in statistics.\n";
+    echo "--jumps                       Include number of jumps in statistics.\n";
+}
+
 try {
     $argsParser = new ArgsParser($argv);
     $args = $argsParser->parse();
@@ -609,9 +619,14 @@ try {
     $programParser = new ProgramParser($instParser, $inputReader);
     $serializer = new XmlProgramSerializer();
 
-    $parseResult = $programParser->parse();
-    $serializer->serialize($parseResult);
-    $statistics->createStatistics($parseResult);
+    if ($args->help) {
+        printHelp();
+    } 
+    else {
+        $parseResult = $programParser->parse();
+        $serializer->serialize($parseResult);
+        $statistics->createStatistics($parseResult);
+    }
 }
 catch (Exception $e) {
     error_log($e->getMessage());
