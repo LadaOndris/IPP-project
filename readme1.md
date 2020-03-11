@@ -19,7 +19,7 @@ Nejprve se zpracují argumenty programu a zkontrolují se jejich správnost. Pok
 
 Implementace IProgramParser, ProgramParser, používá ke své práci IInstructionParser a IInputReader. IInstructionParser vrací instrukce a IInputReader vrací text ze vstupu. Implementace IInstructionParser, InstructionParser, používá ke své práci IArgParser, který zpracuje operandy instrukce.
 
-Na následujícím diagramu je znázorněna výše popsaná struktura programu. Nejsou v něm však obsaženy detaily, pouze důležité části.
+Na následujícím diagramu je znázorněna výše popsaná struktura programu. Nejsou v něm však obsaženy detaily, pouze důležité části.  
 ![Class Diagram znázorňující celkovou sturukturu parseru](/images/parse_class_diagram.png)
 
 ### Implementační detaily
