@@ -1,7 +1,6 @@
 <?php
-
-require_once("test/TestRunner.php");
 require_once("test/ParseRunner.php");
+require_once("test/TestRunner.php");
 require_once("test/InterpretRunner.php");
 require_once("test/XmlDiffRunner.php");
 require_once("test/DiffRunner.php");
@@ -18,6 +17,9 @@ class Errors
     const OPEN_OUTPUT_FILE_ERROR = 12;
 }
 
+/**
+ * TestCaseResult contains the result of a single TestCase.
+ */
 class TestCaseResult
 {
     private $testCase;
@@ -37,6 +39,9 @@ class TestCaseResult
     }
 }
 
+/**
+ * TestSuiteResult contains the test results of TestSuite.
+ */
 class TestSuiteResult
 {
     private $testCaseResults;
@@ -70,6 +75,10 @@ class TestSuiteResult
     }
 }
 
+/**
+ * TestSuite represenets a set of tests. 
+ * In this case it is a set of tests found in a single directory. 
+ */
 class TestSuite
 {
     private $directory;
@@ -93,6 +102,9 @@ interface ITestRunner
     public function runTest(TestCase $test);
 }
 
+/**
+ * Filters files from directory using a regex.
+ */
 class FilenameFilter extends FilterIterator 
 {
     private $regex;
@@ -121,9 +133,13 @@ function printHelp() {
 }
 
 try {
+    /**
+     *  Dependency injection entry point
+     *  Initializes the object graph.
+     */
     $argsParser = new ArgsParser($argv);
     $args = $argsParser->parse();
-    
+
     $parseRunner = new ParseRunner($args->parseScript, $args->verbose);
     $xmlDiffRunner = new XmlDiffRunner($args->jexamxml, $args->verbose);
     $interpretRunner = new InterpretRunner($args->intScript, $args->verbose);
@@ -134,6 +150,9 @@ try {
     $testSuiteReader = new PreprocessTestSuiteReader($testSuiteReader);
     $summaryGenerator = new HtmlSummaryGenerator();
 
+    /**
+     * Starts the whole test thing using the object graph built.
+     */
     if ($args->help) {
         printHelp();
     }

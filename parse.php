@@ -29,6 +29,9 @@ interface IProgramSerializer
     public function serialize($program);
 }
 
+/**
+ * Error constants.
+ */
 class Errors
 {
     const INVALID_COMBINATION_OF_ARGUMENTS = 10;
@@ -41,6 +44,9 @@ class Errors
     const INVALID_OPERANDS_COUNT = 23;
 }
 
+/**
+ * An InputReader that reads lines from stdin.
+ */
 class StdinInputReader implements IInputReader 
 {
     private $commentsCount = 0;
@@ -76,6 +82,12 @@ class StdinInputReader implements IInputReader
     }
 }
 
+/**
+ * InstructionParser returns instructions.
+ * First, it parses the line given by InputReader and 
+ * passes it to ArgParser and in case the instruction is valid, 
+ * returns the parsed instruction.  
+ */
 class InstructionParser implements IInstructionParser
 {
     private $reader;
@@ -170,6 +182,10 @@ class InstructionParser implements IInstructionParser
     }
 }
 
+/**
+ *  Given a raw string and an expected type of the argument, 
+ *  it parses it and returns the result.
+ */
 class ArgParser implements IArgParser
 {
     public function parseArg($expectedArgumentType, $actualArgument) {
@@ -289,7 +305,10 @@ class ArgParser implements IArgParser
     private const IDENTIFIER_REGEX = "[[:alpha:]" . ArgParser::SPECIAL_CHARS . "][[:alnum:]" . ArgParser::SPECIAL_CHARS . "]*";
 }
  
-
+/**
+ * ProgramParser returns the whole parsed program.
+ * It calls InstructionParser to get all the instructions the program is made of.
+ */
 class ProgramParser implements IProgramParser
 {
     private $instParser;
@@ -330,6 +349,10 @@ class ProgramParser implements IProgramParser
     }
 }
 
+/**
+ * Program holds all the instructions it consists of 
+ * and other information.
+ */
 class Program
 {
     private $instructions = array(), $language, $commentsCount;
@@ -359,6 +382,11 @@ class Program
     }
 }
 
+/**
+ * Instruction represents a single instruction of given program.
+ * 
+ * Each instruction has operands and an opcode.
+ */
 class Instruction
 {
     private $opcode, $args;
@@ -377,6 +405,11 @@ class Instruction
     }
 }
 
+/** 
+ * Argument represents an operand of an instructin.
+ * 
+ * Each argument has a type and content.
+ */
 class Argument
 {
     protected $argumentType, $content;
@@ -396,6 +429,9 @@ class Argument
 
 }
 
+/**
+ * All possible types of arguments.
+ */
 abstract class ArgType {
     const INT = "int";
     const BOOL = "bool";
@@ -407,6 +443,10 @@ abstract class ArgType {
     const SYMB = "symb";
 }
 
+/**
+ * Implementation of IProgramSerializer. 
+ * It serializes the given program into an xml. 
+*/
 class XmlProgramSerializer implements IProgramSerializer
 {
     public function serialize($program) {
@@ -466,6 +506,11 @@ class XmlProgramSerializer implements IProgramSerializer
     }
 }
 
+/**
+ * Creates the statistics from the given program
+ * by analyzing the information from the program 
+ * and then writes the statistics into a file.
+ */
 class Statistics
 {
     const LOC = "loc";
@@ -546,6 +591,12 @@ class Statistics
     }
 }
 
+/**
+ * An argument parser that parses the program arguments 
+ * and returns an Args object holding these arguments.
+ * 
+ * Also checks the validitity of these arguments.
+ */
 class ArgsParser
 {
     private $argv;
@@ -609,6 +660,10 @@ function printHelp() {
 }
 
 try {
+    /**
+     *  Dependency injection entry point
+     *  Initializes the object graph.
+     */
     $argsParser = new ArgsParser($argv);
     $args = $argsParser->parse();
 

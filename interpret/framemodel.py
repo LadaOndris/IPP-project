@@ -25,7 +25,7 @@ class FrameModel:
         elif frameName == "LF":
             if len(self.localFrameStack) == 0:
                 raise InterpretException("There is no local frame", ReturnCodes.INVALID_FRAME)
-            frame = self.localFrameStack[0]
+            frame = self.localFrameStack[-1]
         elif frameName == "TF":
             frame = self.temporaryFrame
         else:
@@ -47,7 +47,8 @@ class FrameModel:
     def pushTempFrameToLocalFrameStack(self):
         if not isinstance(self.temporaryFrame, Frame):
             raise InterpretException("Temporary frame undefined", ReturnCodes.INVALID_FRAME)
-        self.localFrameStack.insert(0, self.temporaryFrame)
+        self.localFrameStack.append(self.temporaryFrame)
+        self.temporaryFrame = None
     
     def popFromLocalFrameStackToTempFrame(self):
         if len(self.localFrameStack) == 0:

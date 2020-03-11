@@ -1,4 +1,7 @@
 
+from .return_codes import *
+import re
+
 class OperandFactory:
     
     def __init__(self, frameModel):
@@ -31,15 +34,27 @@ class OperandFactory:
     
     def __cast(self, stringValue, type):
         if type == 'bool':
-            return bool(stringValue)
+            if stringValue.lower() == 'true':
+                return True
+            elif stringValue.lower() == 'false':
+                return False
+            else:
+                raise InterpretException("Invalid boolean value", ReturnCodes.SEMANTIC_ERROR)
         elif type == 'nil':
             return None
         elif type == 'int':
             return int(stringValue)
         elif type == 'string':
-            return stringValue
+            return self.__replaceChars(stringValue)
         else:
             raise Exception('Invalid type')
+   
+    def __replaceChars(self, string):
+        return re.sub(r'\\[0-9]{3}', self.convertToChar, string)
+    
+    def convertToChar(self, sequence):
+        asciiChar = int(sequence.group(0)[1:])
+        return chr(asciiChar)
         
 class Operand:
 
@@ -95,6 +110,8 @@ class VariableOperand(SymbolOperand):
     
     def getValue(self):
         variable = self.__frameModel.getVariable(self.__variableFrameName)
+        if self.getType() == None:
+            raise InterpretException("Missing value in operand", ReturnCodes.MISSING_VALUE)
         return variable.value  
     
     def getType(self):

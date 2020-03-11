@@ -32,9 +32,9 @@ class Program:
     def __parseArgument(self, argElement):
         type = argElement.attrib["type"]
         value = argElement.text
-        if (type == "bool"):
-            value = bool(value)
-        elif (type == "nil"):
+        if (type == "nil"):
+            value = ""
+        if (value == None):
             value = ""
         return Argument(type, value)
     

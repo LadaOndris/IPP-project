@@ -27,12 +27,24 @@ try:
     if sourceOption == None:
         source = sys.stdin
         
+    if inputOption != None:
+        inputFile = open(inputOption)
+        sys.stdin = inputFile
+    else:
+        inputFile = None
+        
     frameModel = FrameModel()
     operandFactory = OperandFactory(frameModel)
-    processor = Processor(frameModel, operandFactory, inputOption)
+    processor = Processor(frameModel, operandFactory, inputFile)
     program = Program(sourceOption)
     
     processor.execute(program.getInstructions())
+    
+    if processor.stopCode == None:
+        exit(0)
+    else:
+        exit(processor.stopCode)
+        
 except InterpretException as ex:
     print(ex.args[0], file=sys.stderr)
     exit(ex.args[1])
