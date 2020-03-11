@@ -15,11 +15,11 @@ Vstupním bodem DI je v souboru parse.php úplně dole. Nejprve se vytvoří vš
 Veškeré třídy s chováním jsou implementacemi definovaných rozhraní.
 
 Proces parseru při spuštění je následující:   
-Nejprve se zpracují argumenty programu a zkontrolují se jejich správnost. Pokud je vše v pořádku, zavolá se funkce `parse()` na `IProgramParser`, který načte celý program a vrátí ho. Poté se zavolá funkce serialize na IProgramSerializer, která program serializuje. A úplně nakonec se vytvoří statistiky.
+Nejprve se zpracují argumenty programu a zkontrolují se jejich správnost. Pokud je vše v pořádku, zavolá se funkce `parse()` na `IProgramParser`, který načte celý program a vrátí ho. Poté se zavolá funkce `serialize` na `IProgramSerializer`, která program serializuje. A úplně nakonec se vytvoří statistiky.
 
-Implementace IProgramParser, ProgramParser, používá ke své práci IInstructionParser a IInputReader. IInstructionParser vrací instrukce a IInputReader vrací text ze vstupu. Implementace IInstructionParser, InstructionParser, používá ke své práci IArgParser, který zpracuje operandy instrukce.
+Implementace `IProgramParser`, `ProgramParser`, používá ke své práci `IInstructionParser` a `IInputReader`. `IInstructionParser` vrací instrukce a `IInputReader` vrací text ze vstupu. Implementace `IInstructionParser`, `InstructionParser`, používá ke své práci `IArgParser`, který zpracuje operandy instrukce.
 
-Dále existují třídy Program, Instruction, Argument a další. 
+Dále existují třídy `Program`, `Instruction`, `Argument` a další. 
 
 Na následujícím diagramu je znázorněna výše popsaná struktura programu. Nejsou v něm však obsaženy detaily, pouze důležité části.  
 ![Class Diagram znázorňující celkovou sturukturu parseru](/images/parse_class_diagram.png)
