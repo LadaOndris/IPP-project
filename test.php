@@ -130,6 +130,7 @@ function printHelp() {
     echo "--int-only                    Run interpret only.\n";
     echo "--parse-only                  Run parse script only.\n";
     echo "--jexamxml PATH               Set path to jexamxml.jar script for xml comparison, default is /pub/courses/ipp/jexamxml/jexamxml.jar.\n";
+    echo "--match REGEX                 Regex to filter test names without extension and path.";
 }
 
 try {
@@ -146,7 +147,7 @@ try {
     $outputDiffRunner = new DiffRunner($args->verbose);
     $testRunner = new TestRunner($parseRunner, $args->parseOnly, $interpretRunner, $args->intOnly, 
                                  $xmlDiffRunner, $outputDiffRunner, $args->verbose);
-    $testSuiteReader = new DirectoryTestSuiteReader($args->directory, $args->recursive);
+    $testSuiteReader = new DirectoryTestSuiteReader($args->directory, $args->recursive, $args->match);
     $testSuiteReader = new PreprocessTestSuiteReader($testSuiteReader);
     $summaryGenerator = new HtmlSummaryGenerator();
 
