@@ -1,0 +1,115 @@
+.IPPCODE20 # all instructions, only correct form (I hope)
+CREATEFRAME # 0,
+
+PUSHFRAME 
+CREATEFRAME # 0,
+DEFVAR GF@a #
+DEFVAR GF@x #
+DEFVAR GF@j# 1,
+DEFVAR GF@c
+DEFVAR GF@n
+DEFVAR TF@h
+DEFVAR LF@_-$&%*!?
+#
+Move GF@a string@
+
+DEFVAR GF@m
+
+MOVE GF@j int@10# 2,
+
+
+#
+
+PUSHFRAME 
+# 0,
+POPFRAME # 0,
+
+PUSHS GF@j# 1,
+POPS GF@j # 1,
+write string@\010j=
+write GF@j
+write string@\010\010
+ADD GF@j GF@j GF@j # 3,
+SUB GF@j GF@j GF@j# 3,
+MOVE GF@j int@10# 2,
+MUL GF@j GF@j GF@j# 3,
+IDIV GF@j GF@j GF@j# 3,
+
+
+LT GF@j GF@j GF@j# 3,
+GT GF@j GF@j GF@j# 3,
+EQ GF@j GF@j GF@j# 3,
+AND GF@j GF@j GF@j# 3,
+OR GF@j GF@j GF@j# 3,
+NOT GF@j GF@j# 3,
+
+MOVE GF@j int@10# 2,
+TYPE GF@c GF@j# 2,
+write string@type_j=
+write GF@c
+write string@\010
+INT2CHAR GF@x int@10# 2,
+
+call write_x
+write string@pattern:x=ábcdefgh
+move GF@x string@ábcdefgh
+call write_x
+move GF@j int@5
+STRI2INT GF@x GF@x GF@j# 3,
+call write_x
+jump write_x_
+label write_x
+write string@\010x=
+write GF@x
+write string@\010
+return
+label write_x_
+write string@read_j:
+READ GF@j int# 2,
+write string@\010j=
+write GF@j
+write string@\010
+CONCAT GF@x GF@a GF@a # 3,
+write string@\010x=
+write GF@x
+write string@\010
+
+move GF@x string@I_am_gonna_kill_you_
+STRLEN GF@j GF@x# 2,
+sub GF@j GF@j int@1
+call write_x
+SETCHAR GF@x GF@j string@!tri# 3,
+write string@\010pattern:\032x=I_am_gonna_kill_you!
+call write_x
+move GF@j int@3
+GETCHAR GF@x GF@x GF@j# 3,
+write string@\010pattern:\032x=m
+call write_x
+MOVE GF@j int@10# 2,
+write string@j(while(j<=12)):\010
+WRITE GF@j # 1,
+write string@\010
+LABEL while # 1,
+#
+add GF@j GF@j int@1
+JUMPIFnEQ while GF@j int@12# 3,
+WRITE GF@j # 1,
+write string@\010
+JUMPIFEQ death GF@j int@12# 3,
+write string@jumpifeq_ERROR
+LABEL death
+JUMP skap # 1,
+write string@jump_ERROR\010
+label skap
+write string@jump__OK_:)\010dprint(12):
+DPRint GF@j# 1,
+write string@\010break:\010
+BREAK # 0,
+CALL test_call # 1,
+write string@\010test_call_second\010
+jump yeah
+label test_call
+write string@\010test_call_first\010
+RETURN # 0,
+label yeah
+EXIT GF@j # 1, return 10

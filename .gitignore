@@ -1,3 +1,5 @@
 
 ipp-2020-tests/
 *__pycache__*
+.profile
+nul
