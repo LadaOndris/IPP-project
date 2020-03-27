@@ -9,29 +9,41 @@ import sys
 import argparse
 from interpret import *
 
-ap = argparse.ArgumentParser()
+
+def printHelp():
+    print("test.php help:")
+    print("--help                        Prints this help.")
+    print("--source SOURCE               Path to the source file.")
+    print("--input SOURCE                Path to the input file (meaning the stdin for the program).")
+
+ap = argparse.ArgumentParser(add_help = False)
 ap.add_argument("-s", "--source")
 ap.add_argument("-i", "--input")
+ap.add_argument("-h", "--help", action='store_true', default=False)
 args = vars(ap.parse_args())
 
 try:
     sourceOption = args["source"]
     inputOption = args["input"]
-    # helpOption = args['help']
+    helpOption = args['help']
     
     if sourceOption == None and inputOption == None:
-        raise InterpretException('Some option have to be specified', ReturnCodes.SCRIPT_PARAMETER_ERROR)
-    # elif helpOption != None:
-        # raise InterpretException('Some option have to be specified', ReturnCodes.SCRIPT_PARAMETER_ERROR)
+        if helpOption == False:
+            raise InterpretException('Some option have to be specified', ReturnCodes.SCRIPT_PARAMETER_ERROR)
+        else:
+            printHelp()
+            exit(ReturnCodes.SUCCESS)
+    elif helpOption == True:
+        raise InterpretException('Cannot combine paramaters', ReturnCodes.SCRIPT_PARAMETER_ERROR)
     
     if sourceOption == None:
-        source = sys.stdin
-        
-    if inputOption != None:
+        sourceOption = sys.stdin
+    
+    if inputOption == None:
+        inputFile = None
+    else:
         inputFile = open(inputOption)
         sys.stdin = inputFile
-    else:
-        inputFile = None
         
     frameModel = FrameModel()
     operandFactory = OperandFactory(frameModel)

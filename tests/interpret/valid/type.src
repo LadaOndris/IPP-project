@@ -6,18 +6,18 @@
     <instruction order="2" opcode="DEFVAR">
         <arg1 type="var">GF@none</arg1>
     </instruction>
-    <instruction order="2" opcode="TYPE">
+    <instruction order="3" opcode="TYPE">
         <arg1 type="var">GF@type</arg1>
         <arg2 type="var">GF@none</arg2>
     </instruction>
-    <instruction order="2" opcode="WRITE">
+    <instruction order="4" opcode="WRITE">
         <arg1 type="var">GF@type</arg1>
     </instruction>
-    <instruction order="2" opcode="TYPE">
+    <instruction order="5" opcode="TYPE">
         <arg1 type="var">GF@type</arg1>
         <arg2 type="int">6</arg2>
     </instruction>
-    <instruction order="2" opcode="WRITE">
+    <instruction order="6" opcode="WRITE">
         <arg1 type="var">GF@type</arg1>
     </instruction>
 </program>

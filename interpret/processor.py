@@ -556,7 +556,37 @@ class NotInstruction(Instruction):
         
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         variable.set(not value1, 'bool')
-            
+        
+class DprintInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        sourceOperand = self.operands[0]
+        self.__writeValue(sourceOperand.getValue(), sourceOperand.getType())
+        
+    def __writeValue(self, value, type):
+        if type == 'bool':
+            print('true' if value else 'false', file=sys.stderr)
+        elif type == 'nil':
+            print('', file=sys.stderr)
+        elif type == 'int' or type == 'string':
+            print(value, file=sys.stderr)
+        else:
+            raise InterpretException("Invalid argument type", ReturnCodes.INVALID_INPUT)
+
+class BreakInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = []
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):
+        print('Just some string', file=sys.stderr)
+        
+         
 class Processor:
     
     def __init__(self, frameModel, operandFactory, inputFile):

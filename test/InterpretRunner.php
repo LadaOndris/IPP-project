@@ -35,7 +35,7 @@ class InterpretRunner {
     }
 
     private function getInterpretCommand() {
-        return "python3.8 \"{$this->interpretScript}\" --source=\"{$this->sourceFilename}\" --input=\"{$this->inputFilename}\" > \"{$this->outputFilename}\" ";
+        return "python3 \"{$this->interpretScript}\" --source=\"{$this->sourceFilename}\" --input=\"{$this->inputFilename}\" > \"{$this->outputFilename}\" ";
     }
 
     private function printDebugInfo() {
