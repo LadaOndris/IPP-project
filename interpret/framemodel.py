@@ -7,6 +7,7 @@ class FrameModel:
         self.globalFrame = Frame()
         self.localFrameStack = []
         self.temporaryFrame = None
+        self.maximumVariables = 0
       
     """
     Expects a parameter such as GF@var
@@ -54,3 +55,27 @@ class FrameModel:
         if len(self.localFrameStack) == 0:
             raise InterpretException('Empty frame stack', ReturnCodes.INVALID_FRAME)
         self.temporaryFrame = self.localFrameStack.pop()
+        
+    def updateMaximumVariables(self):
+        variablesCount = self.countInitializedVariables(self.globalFrame)
+        variablesCount += self.countInitializedVariables(self.temporaryFrame)
+        for localFrame in self.localFrameStack:
+            variablesCount += self.countInitializedVariables(localFrame)
+            
+        if self.maximumVariables < variablesCount:
+            self.maximumVariables = variablesCount
+        
+    def countInitializedVariables(self, frame):
+        count = 0
+        if not isinstance(frame, Frame):
+            return count
+        for variable in frame.variables.values():
+            if variable.isInitialized():
+                count += 1
+        return count
+        
+        
+        
+        
+        
+        

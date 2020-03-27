@@ -23,6 +23,9 @@ class OperandFactory:
         elif operandType == 'int':
             operandValue = self.__cast(operandValue, operandType)
             return ConstantOperand(operandValue, operandType)
+        elif operandType == 'float':
+            operandValue = self.__cast(operandValue, operandType)
+            return ConstantOperand(operandValue, operandType)
         elif operandType == 'string':
             operandValue = self.__cast(operandValue, operandType)
             return ConstantOperand(operandValue, operandType)
@@ -44,6 +47,8 @@ class OperandFactory:
             return None
         elif type == 'int':
             return int(stringValue)
+        elif type == 'float':
+            return float.fromhex(stringValue)
         elif type == 'string':
             return self.__replaceChars(stringValue)
         else:

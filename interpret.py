@@ -19,6 +19,7 @@ def printHelp():
 ap = argparse.ArgumentParser(add_help = False)
 ap.add_argument("-s", "--source")
 ap.add_argument("-i", "--input")
+ap.add_argument("-f", "--stats")
 ap.add_argument("-h", "--help", action='store_true', default=False)
 args = vars(ap.parse_args())
 
@@ -42,15 +43,22 @@ try:
     if inputOption == None:
         inputFile = None
     else:
-        inputFile = open(inputOption)
+        try:
+            inputFile = open(inputOption)
+        except:
+            raise InterpretException('Cannot open file', ReturnCodes.INPUT_FILE_ERROR)
         sys.stdin = inputFile
         
     frameModel = FrameModel()
     operandFactory = OperandFactory(frameModel)
-    processor = Processor(frameModel, operandFactory, inputFile)
+    instructionCounter = InstructionCounter()
+    processor = Processor(frameModel, operandFactory, instructionCounter, inputFile)
     program = Program(sourceOption)
     
     processor.execute(program.getInstructions())
+    
+    print("Executed instructions:", instructionCounter.executedInstructions, file=sys.stderr)
+    print("Maximum variables:", frameModel.maximumVariables, file=sys.stderr)
     
     if processor.stopCode == None:
         exit(0)

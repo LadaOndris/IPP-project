@@ -7,3 +7,4 @@ from .program import *
 from .argument import *
 from .operand import *
 from .return_codes import *
+from .instructionCounter import *

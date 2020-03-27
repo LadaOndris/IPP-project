@@ -10,3 +10,6 @@ class FrameVariable:
     def set(self, value, type):
         self.value = value
         self.type = type
+        
+    def isInitialized(self):
+        return not(self.value == None and type == None)

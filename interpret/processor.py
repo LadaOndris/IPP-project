@@ -3,6 +3,7 @@ from .operand import *
 from .return_codes import *
 import fileinput
 import sys
+import operator
 
 class Instruction:
     
@@ -21,7 +22,58 @@ class Instruction:
         
     def execute(self):
         raise NotImplementedError('Abstract method')
+
+class StackInstruction(Instruction):
     
+    def __init__(self, operands, processor):
+        super().__init__(operands, [], processor)
+
+
+class UnaryStackInstruction(StackInstruction):
+    
+    def __init__(self, operands, processor, operation):
+        super().__init__(operands, processor)
+        self.operatorFunction = operation[0]
+        self.allowedTypes = operation[1]
+        self.resultType = operation[2]
+
+    def execute(self):
+        val, type = self.processor.popFromStack()
+        self.checkType(type)
+        
+        result = self.operatorFunction(val)
+        self.processor.pushToStack((result, self.resultType))
+           
+    def checkType(self, type):
+        for allowedType in self.allowedTypes:
+            if type == allowedType:
+                return
+        raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        
+class BinaryStackInstruction(StackInstruction):
+    
+    def __init__(self, operands, processor, operation):
+        super().__init__(operands, processor)
+        self.operatorFunction = operation[0]
+        self.allowedTypes = operation[1]
+        self.resultType = operation[2]
+
+    def execute(self):
+        val2, type2 = self.processor.popFromStack()
+        val1, type1 = self.processor.popFromStack()
+        
+        self.checkTypes(type1, type2)
+        
+        result = self.operatorFunction(val1, val2)
+        self.processor.pushToStack((result, self.resultType))
+           
+    def checkTypes(self, type1, type2):
+        for allowedType in self.allowedTypes:
+            if type1 == allowedType and type2 == allowedType:
+                return
+            
+        raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        
 class DefvarInstruction(Instruction):
     
     def __init__(self, operands, processor):
@@ -58,7 +110,11 @@ class WriteInstruction(Instruction):
             print('true' if value else 'false', end='')
         elif type == 'nil':
             print('', end='')
+        elif type == 'float':
+            #print('float', file=sys.stderr)
+            print(value.hex(), end='')
         elif type == 'int' or type == 'string':
+            #print('int, string', file=sys.stderr)
             print(value, end='')
         else:
             raise InterpretException("Invalid argument type", ReturnCodes.INVALID_INPUT)
@@ -82,14 +138,7 @@ class ReadInstruction(Instruction):
         variable.set(value, type)
     
     def __readValue(self, type):
-        #file = self.processor.getInputFile()
         value = input()
-        # if file == None:
-        #     value = input()
-        # else:
-        #     value = file.readline().strip()
-        #     if value == '':
-        #         return '', 'nil'
         return self.__convertToType(value, type), type
         
     def __convertToType(self, value, type):
@@ -97,6 +146,8 @@ class ReadInstruction(Instruction):
             return int(value)
         if type == 'bool':
             return value.lower() == "true"
+        if type == 'float':
+            return float.fromhex(value)
         if type == 'string':
             return value
         raise InterpretException("Invalid type: " + type, ReturnCodes.INVALID_INPUT)
@@ -184,7 +235,23 @@ class JumpifeqInstruction(Instruction):
             raise InterpretException('Types differ', ReturnCodes.BAD_OPERANDS)
         if val1 == val2:
             self.processor.instructionCounter.jumpTo(label)
-
+    
+class JumpifeqsInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ LabelOperand ]
+        super().__init__(operands, expectedOperands, processor)
+        
+    def execute(self):
+        val2, type2 = self.processor.popFromStack()
+        val1, type1 =  self.processor.popFromStack()
+        label = self.operands[0].getValue()
+        
+        if type1 != type2 and type1 != 'nil' and type2 != 'nil':
+            raise InterpretException('Types differ', ReturnCodes.BAD_OPERANDS)
+        if val1 == val2:
+            self.processor.instructionCounter.jumpTo(label)
+            
 class JumpifneqInstruction(Instruction):
     
     def __init__(self, operands, processor):
@@ -204,7 +271,23 @@ class JumpifneqInstruction(Instruction):
         
         if val1 != val2:
             self.processor.instructionCounter.jumpTo(label)
-
+    
+class JumpifneqsInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ LabelOperand ]
+        super().__init__(operands, expectedOperands, processor)
+        
+    def execute(self):
+        val2, type2 = self.processor.popFromStack()
+        val1, type1 =  self.processor.popFromStack()
+        label = self.operands[0].getValue()
+        
+        if type1 != type2 and type1 != 'nil' and type2 != 'nil':
+            raise InterpretException('Types differ', ReturnCodes.BAD_OPERANDS)
+        if val1 != val2:
+            self.processor.instructionCounter.jumpTo(label)
+            
 class ExitInstruction(Instruction):
     
     def __init__(self, operands, processor):
@@ -318,7 +401,7 @@ class Int2charInstruction(Instruction):
     
     def __init__(self, operands, processor):
         expectedOperands = [ VariableOperand, SymbolOperand ]
-        Instruction.__init__(self, operands, expectedOperands, processor)
+        super().__init__(operands, expectedOperands, processor)
         
     def execute(self):  
         ordinal = self.operands[1].getValue()
@@ -330,6 +413,24 @@ class Int2charInstruction(Instruction):
             except ValueError:
                 raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
             variable.set(char, 'string')
+        else:
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+
+
+class Int2charsInstruction(StackInstruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(operands, processor)
+        
+    def execute(self):  
+        ordinal, ordinalType = self.processor.popFromStack()
+           
+        if ordinalType == 'int':
+            try:
+                char = chr(ordinal)
+            except ValueError:
+                raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+            self.processor.pushToStack((char, 'string'))
         else:
             raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
 
@@ -352,14 +453,53 @@ class Stri2intInstruction(Instruction):
         else:
             raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
 
-class DprintInstruction(Instruction):
+class Stri2intsInstruction(StackInstruction):
     
     def __init__(self, operands, processor):
-        expectedOperands = [ SymbolOperand ]
-        super().__init__(operands, expectedOperands, processor)
+        super().__init__(operands, processor)
         
-    def execute(self):
-        print(self.operands[0].getValue(), file=sys.error) # todo
+    def execute(self):  
+        index, indexType = self.processor.popFromStack()
+        string, stringType = self.processor.popFromStack()
+        
+        if stringType == 'string' and indexType == 'int':
+            if index < 0 or index >= len(string):
+                raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+            ordinal = ord(string[index])
+            self.processor.pushToStack((ordinal, 'int'))
+        else:
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+
+
+class Int2floatInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):  
+        ordinal = self.operands[1].getValue()
+            
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        if self.operands[1].getType() != 'int':
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            
+        variable.set(float(self.operands[1].getValue()), 'float')
+
+class Float2intInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        expectedOperands = [ VariableOperand, SymbolOperand ]
+        Instruction.__init__(self, operands, expectedOperands, processor)
+        
+    def execute(self):  
+        ordinal = self.operands[1].getValue()
+            
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        if self.operands[1].getType() != 'float':
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            
+        variable.set(int(self.operands[1].getValue()), 'int')
 
 class ArithmeticInstruction(Instruction):
     
@@ -368,10 +508,15 @@ class ArithmeticInstruction(Instruction):
         super().__init__(operands, expectedOperands, processor)
         
     def execute(self):
-        if self.operands[1].getType() == None or self.operands[2].getType() == None:
+        type1 = self.operands[1].getType()
+        type2 = self.operands[2].getType()
+        if type1 == 'int' and type2 == 'int':
+            return
+        if type1 == 'float' and type2 == 'float':
+            return
+        if type1 == None or type2 == None:
             raise InterpretException("Missing value in operand", ReturnCodes.MISSING_VALUE)
-        if self.operands[1].getType() != 'int' or self.operands[2].getType() != 'int':
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
 
 class AddInstruction(ArithmeticInstruction):
     
@@ -384,7 +529,7 @@ class AddInstruction(ArithmeticInstruction):
         val2 = self.operands[2].getValue()
         
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
-        variable.set(val1 + val2, 'int')
+        variable.set(val1 + val2, self.operands[1].getType())
         
 class SubInstruction(ArithmeticInstruction):
     
@@ -397,7 +542,7 @@ class SubInstruction(ArithmeticInstruction):
         val2 = self.operands[2].getValue()
         
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
-        variable.set(val1 - val2, 'int')        
+        variable.set(val1 - val2, self.operands[1].getType())        
         
 class MulInstruction(ArithmeticInstruction):
     
@@ -409,7 +554,7 @@ class MulInstruction(ArithmeticInstruction):
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         val1 = self.operands[1].getValue()
         val2 = self.operands[2].getValue()
-        variable.set(val1 * val2, 'int')    
+        variable.set(val1 * val2, self.operands[1].getType())    
         
 class IdivInstruction(ArithmeticInstruction):
     
@@ -422,9 +567,30 @@ class IdivInstruction(ArithmeticInstruction):
         val2 = self.operands[2].getValue()
         if val2 == 0:
             raise InterpretException("Cannot divide by 0", ReturnCodes.BAD_OPERAND_VALUE)
+        
+        if self.operands[1].getType() != 'int' or self.operands[2].getType() != 'int':
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
             
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         variable.set(val1 // val2, 'int')    
+        
+class DivInstruction(ArithmeticInstruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(operands, processor)
+        
+    def execute(self):
+        super().execute()
+        val1 = self.operands[1].getValue()
+        val2 = self.operands[2].getValue()
+        if val2 == 0:
+            raise InterpretException("Cannot divide by 0", ReturnCodes.BAD_OPERAND_VALUE)
+            
+        if self.operands[1].getType() != 'float' or self.operands[2].getType() != 'float':
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            
+        variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
+        variable.set(val1 / val2, 'float')    
 
 class PushsInstruction(Instruction):
     
@@ -561,7 +727,7 @@ class DprintInstruction(Instruction):
     
     def __init__(self, operands, processor):
         expectedOperands = [ SymbolOperand ]
-        Instruction.__init__(self, operands, expectedOperands, processor)
+        super().__init__(operands, expectedOperands, processor)
         
     def execute(self):
         sourceOperand = self.operands[0]
@@ -572,6 +738,8 @@ class DprintInstruction(Instruction):
             print('true' if value else 'false', file=sys.stderr)
         elif type == 'nil':
             print('', file=sys.stderr)
+        elif type == 'float':
+            print(value, file=sys.stderr)
         elif type == 'int' or type == 'string':
             print(value, file=sys.stderr)
         else:
@@ -586,14 +754,136 @@ class BreakInstruction(Instruction):
     def execute(self):
         print('Just some string', file=sys.stderr)
         
+
+class ClearsInstruction(Instruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(operands, [], processor)     
+        
+    def execute(self):
+        self.processor.clearStack()
+        
+class AddsInstruction(StackInstruction):
+   
+    def __init__(self, operands, processor):
+        super().__init__(operands, processor)
+        
+    def execute(self):
+        val2, type2 = self.processor.popFromStack()
+        val1, type1 = self.processor.popFromStack()
+        
+        if (type1 != type2 or (type1 != 'int' and type2 != 'float')):
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        
+        self.processor.pushToStack((val1 + val2, type1))
+        
+class SubsInstruction(StackInstruction):
+   
+    def __init__(self, operands, processor):
+        super().__init__(operands, processor)
+        
+    def execute(self):
+        val2, type2 = self.processor.popFromStack()
+        val1, type1 = self.processor.popFromStack()
+        
+        if (type1 != type2 or (type1 != 'int' and type2 != 'float')):
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        
+        self.processor.pushToStack((val1 - val2, type1))
          
+class MulsInstruction(StackInstruction):
+   
+    def __init__(self, operands, processor):
+        super().__init__(operands, processor)
+        
+    def execute(self):
+        val2, type2 = self.processor.popFromStack()
+        val1, type1 = self.processor.popFromStack()
+        
+        if (type1 != type2 or (type1 != 'int' and type2 != 'float')):
+            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        
+        self.processor.pushToStack((val1 * val2, type1))
+
+class IdivsInstruction(BinaryStackInstruction):
+   
+    def __init__(self, operands, processor):
+        operation = (operator.floordiv, ['int'], 'int')
+        super().__init__(operands, processor, operation)
+        
+    def execute(self):
+        super().execute()
+        
+class DivsInstruction(StackInstruction):
+   
+    def __init__(self, operands, processor):
+        operation = (operator.div, ['float'], 'float')
+        super().__init__(operands, processor, operation)
+        
+    def execute(self):
+        super().execute()
+        
+class AndsInstruction(BinaryStackInstruction):
+   
+    def __init__(self, operands, processor):
+        operation = (operator.and_, ['bool'], 'bool')
+        super().__init__(operands, processor, operation)
+        
+    def execute(self):
+        super().execute()
+
+class OrsInstruction(BinaryStackInstruction):
+   
+    def __init__(self, operands, processor):
+        operation = (operator.or_, ['bool'], 'bool')
+        super().__init__(operands, processor, operation)
+        
+    def execute(self):
+        super().execute()
+
+class GtsInstruction(BinaryStackInstruction):
+   
+    def __init__(self, operands, processor):
+        operation = (operator.gt, ['int', 'bool', 'float', 'string'], 'bool')
+        super().__init__(operands, processor, operation)
+        
+    def execute(self):
+        super().execute()
+        
+class LtsInstruction(BinaryStackInstruction):
+   
+    def __init__(self, operands, processor):
+        operation = (operator.lt, ['int', 'bool', 'float', 'string'], 'bool')
+        super().__init__(operands, processor, operation)
+        
+    def execute(self):
+        super().execute()
+        
+class EqsInstruction(BinaryStackInstruction):
+   
+    def __init__(self, operands, processor):
+        operation = (operator.eq, ['int', 'bool', 'float', 'string', 'nil'], 'bool')
+        super().__init__(operands, processor, operation)
+        
+    def execute(self):
+        super().execute()
+        
+class NotsInstruction(UnaryStackInstruction):
+   
+    def __init__(self, operands, processor):
+        operation = (operator.not_, ['int', 'bool', 'float', 'string'], 'bool')
+        super().__init__(operands, processor, operation)
+        
+    def execute(self):
+        super().execute()
+        
 class Processor:
     
-    def __init__(self, frameModel, operandFactory, inputFile):
+    def __init__(self, frameModel, operandFactory, instructionCounter, inputFile):
         self.frameModel = frameModel
         self.__operandFactory = operandFactory
         self.__inputFile = inputFile
-        self.instructionCounter = InstructionCounter()
+        self.instructionCounter = instructionCounter
         self.stopCode = None
         self.__dataStack = []
         
@@ -603,6 +893,7 @@ class Processor:
     
         while self.instructionCounter.nextInstruction() and self.stopCode == None:
             self.instructionCounter.executeCurrentInstruction()
+            self.frameModel.updateMaximumVariables()
         
     def __createInstructions(self, rawInstructions):
         self.instructions = []
@@ -613,6 +904,7 @@ class Processor:
     def __createInstruction(self, opcode, rawOperands):
         operands = self.__createOperands(rawOperands)
         className = opcode.capitalize() + "Instruction"
+        
         try:
             return eval(className)(operands, self)
         except NameError:
@@ -636,61 +928,12 @@ class Processor:
             raise InterpretException('Empty data stack', ReturnCodes.MISSING_VALUE)
         return self.__dataStack.pop()
 
+    def clearStack(self):
+        self.__dataStack = []
+
     def getInputFile(self):
         return self.__inputFile
  
-class InstructionCounter:
-    
-    def __init__(self):
-        self.__counter = 0
-        self.callStack = []
-        
-    def setInstructions(self, instructions):
-        self.__counter = 0
-        self.instructions = instructions
-        self.__findLabels()
-    
-    def __findLabels(self):
-        labels = {}
-        for index, instr in enumerate(self.instructions):
-            if isinstance(instr, LabelInstruction):
-                label = instr.operands[0].getValue()
-                if label in labels:
-                    raise InterpretException('Label already exists', ReturnCodes.SEMANTIC_ERROR)
-                labels[label] = index
-        self.labels = labels
-                        
-    def nextInstruction(self):
-        if self.__counter < len(self.instructions):
-            self.currentInstruction = self.instructions[self.__counter]
-            self.__incrementCounter()
-            return True
-        else:
-            return False
-    
-    def executeCurrentInstruction(self):
-        #print(self.currentInstruction, file=sys.stderr)
-        self.currentInstruction.execute()
-    
-    def __incrementCounter(self):
-        self.__counter += 1
-        
-    def __decrementCounter(self):
-        self.__counter -= 1
-        
-    def pushCallstack(self):
-        self.callStack.append(self.__counter)
-    
-    def popCallstack(self):
-        if len(self.callStack) == 0:
-            raise InterpretException('Callstack is empty', ReturnCodes.MISSING_VALUE)
-        self.__counter = self.callStack.pop()
-        
-    def jumpTo(self, label):
-        if not label in self.labels:
-            raise InterpretException('Label doesnt exist', ReturnCodes.SEMANTIC_ERROR)
-        self.__counter = self.labels[label] 
-    
         
     
     
