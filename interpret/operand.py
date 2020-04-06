@@ -33,7 +33,7 @@ class OperandFactory:
             operandValue = self.__cast(operandValue, operandType)
             return ConstantOperand(operandValue, operandType)
         else:
-            raise Exception('Invalid operand')
+            raise InterpretException("Invalid operand", ReturnCodes.INVALID_INPUT)
     
     def __cast(self, stringValue, type):
         if type == 'bool':
@@ -42,17 +42,23 @@ class OperandFactory:
             elif stringValue.lower() == 'false':
                 return False
             else:
-                raise InterpretException("Invalid boolean value", ReturnCodes.SEMANTIC_ERROR)
+                raise InterpretException("Invalid boolean value", ReturnCodes.INVALID_INPUT)
         elif type == 'nil':
             return None
         elif type == 'int':
-            return int(stringValue)
+            try:
+                return int(stringValue)
+            except:
+                raise InterpretException("Invalid int", ReturnCodes.INVALID_INPUT)
         elif type == 'float':
-            return float.fromhex(stringValue)
+            try:
+                return float.fromhex(stringValue)
+            except:
+                raise InterpretException("Invalid int", ReturnCodes.INVALID_INPUT)
         elif type == 'string':
             return self.__replaceChars(stringValue)
         else:
-            raise Exception('Invalid type')
+            raise InterpretException("Invalid operand type", ReturnCodes.INVALID_INPUT)
    
     def __replaceChars(self, string):
         return re.sub(r'\\[0-9]{3}', self.convertToChar, string)

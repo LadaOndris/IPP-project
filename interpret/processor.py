@@ -48,15 +48,16 @@ class UnaryStackInstruction(StackInstruction):
         for allowedType in self.allowedTypes:
             if type == allowedType:
                 return
-        raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        raise InterpretException("UNARY STACK ISNTR: Invalid operand types", ReturnCodes.BAD_OPERANDS)
         
 class BinaryStackInstruction(StackInstruction):
     
-    def __init__(self, operands, processor, operation):
+    def __init__(self, operands, processor, operation, allowNils = False):
         super().__init__(operands, processor)
         self.operatorFunction = operation[0]
         self.allowedTypes = operation[1]
         self.resultType = operation[2]
+        self.allowNils = allowNils
 
     def execute(self):
         val2, type2 = self.processor.popFromStack()
@@ -68,11 +69,13 @@ class BinaryStackInstruction(StackInstruction):
         self.processor.pushToStack((result, self.resultType))
            
     def checkTypes(self, type1, type2):
+        if (self.allowNils and (type1 == 'nil' or type2 == 'nil')):
+            return
         for allowedType in self.allowedTypes:
             if type1 == allowedType and type2 == allowedType:
                 return
-            
-        raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        print(F"BINARY STACK INSTR: type1: {type1}, type2: {type2}", file=sys.stderr)
+        raise InterpretException("BINARY STACK INSTR: Invalid operand types", ReturnCodes.BAD_OPERANDS)
         
 class DefvarInstruction(Instruction):
     
@@ -117,7 +120,7 @@ class WriteInstruction(Instruction):
             #print('int, string', file=sys.stderr)
             print(value, end='')
         else:
-            raise InterpretException("Invalid argument type", ReturnCodes.INVALID_INPUT)
+            raise InterpretException("WRITE: Invalid argument type", ReturnCodes.INVALID_INPUT)
             
 class ReadInstruction(Instruction):
     
@@ -150,7 +153,7 @@ class ReadInstruction(Instruction):
             return float.fromhex(value)
         if type == 'string':
             return value
-        raise InterpretException("Invalid type: " + type, ReturnCodes.INVALID_INPUT)
+        raise InterpretException("READ: Invalid type: " + type, ReturnCodes.INVALID_INPUT)
 
 class CreateframeInstruction(Instruction):
     
@@ -232,7 +235,7 @@ class JumpifeqInstruction(Instruction):
         op1type = self.operands[1].getType()
         op2type = self.operands[2].getType()
         if op1type != op2type and op1type != 'nil' and op2type != 'nil':
-            raise InterpretException('Types differ', ReturnCodes.BAD_OPERANDS)
+            raise InterpretException('JUMPIFEQ: Types differ', ReturnCodes.BAD_OPERANDS)
         if val1 == val2:
             self.processor.instructionCounter.jumpTo(label)
     
@@ -248,7 +251,7 @@ class JumpifeqsInstruction(Instruction):
         label = self.operands[0].getValue()
         
         if type1 != type2 and type1 != 'nil' and type2 != 'nil':
-            raise InterpretException('Types differ', ReturnCodes.BAD_OPERANDS)
+            raise InterpretException('JUMPIFEQS: Types differ', ReturnCodes.BAD_OPERANDS)
         if val1 == val2:
             self.processor.instructionCounter.jumpTo(label)
             
@@ -267,7 +270,7 @@ class JumpifneqInstruction(Instruction):
         op2type = self.operands[2].getType()
         
         if op1type != op2type and op1type != 'nil' and op2type != 'nil':
-            raise InterpretException('Types differ', ReturnCodes.BAD_OPERANDS)
+            raise InterpretException('JUMPIFNEQ: Types differ', ReturnCodes.BAD_OPERANDS)
         
         if val1 != val2:
             self.processor.instructionCounter.jumpTo(label)
@@ -284,7 +287,7 @@ class JumpifneqsInstruction(Instruction):
         label = self.operands[0].getValue()
         
         if type1 != type2 and type1 != 'nil' and type2 != 'nil':
-            raise InterpretException('Types differ', ReturnCodes.BAD_OPERANDS)
+            raise InterpretException('JUMPIFNEQS: Types differ', ReturnCodes.BAD_OPERANDS)
         if val1 != val2:
             self.processor.instructionCounter.jumpTo(label)
             
@@ -298,12 +301,12 @@ class ExitInstruction(Instruction):
         exitCode = self.operands[0].getValue()
         
         if self.operands[0].getType() != 'int':
-            raise InterpretException('Invalid exit code operand', ReturnCodes.BAD_OPERANDS)
+            raise InterpretException('EXIT: Invalid exit code operand', ReturnCodes.BAD_OPERANDS)
             
         if exitCode >= 0 and exitCode <= 49:
             self.processor.stop(exitCode)
         else:
-            raise InterpretException('Invalid exit code', ReturnCodes.BAD_OPERAND_VALUE)
+            raise InterpretException('EXIT: Invalid exit code', ReturnCodes.BAD_OPERAND_VALUE)
 
 class TypeInstruction(Instruction):
     
@@ -332,7 +335,7 @@ class ConcatInstruction(Instruction):
         if self.__areOperandTypesOk():
             variable.set(str1 + str2, 'string')
         else:
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("CONCAT: Invalid operand types", ReturnCodes.BAD_OPERANDS)
     
     def __areOperandTypesOk(self):
         return self.operands[1].getType() == 'string' and \
@@ -351,7 +354,7 @@ class StrlenInstruction(Instruction):
         if self.__isOperandTypeOk():
             variable.set(len(string), 'int')
         else:
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("STRLEN: Invalid operand types", ReturnCodes.BAD_OPERANDS)
             
     def __isOperandTypeOk(self):
         return self.operands[1].getType() == 'string'
@@ -369,10 +372,10 @@ class GetcharInstruction(Instruction):
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         if self.operands[2].getType() == 'int' and self.operands[1].getType() == 'string':
             if index < 0 or index >= len(string):
-                raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+                raise InterpretException("GETCHAR: Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
             variable.set(string[index], 'string')
         else:
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("GETCHAR: Invalid operand types", ReturnCodes.BAD_OPERANDS)
     
 class SetcharInstruction(Instruction):
     
@@ -390,12 +393,12 @@ class SetcharInstruction(Instruction):
            self.operands[1].getType() == 'int' and \
            self.operands[2].getType() == 'string':
             if index < 0 or index >= len(string) or len(sourceString) == 0:
-                raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+                raise InterpretException("SETCHAR: Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
             mutableString = list(string)
             mutableString[index] = sourceString[0]     
             variable.set("".join(mutableString), 'string')
         else:
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("SETCHAR: Invalid operand types", ReturnCodes.BAD_OPERANDS)
 
 class Int2charInstruction(Instruction):
     
@@ -411,10 +414,10 @@ class Int2charInstruction(Instruction):
             try:
                 char = chr(ordinal)
             except ValueError:
-                raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+                raise InterpretException("INT2CHAR: Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
             variable.set(char, 'string')
         else:
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("INT2CHAR: Invalid operand types", ReturnCodes.BAD_OPERANDS)
 
 
 class Int2charsInstruction(StackInstruction):
@@ -429,10 +432,10 @@ class Int2charsInstruction(StackInstruction):
             try:
                 char = chr(ordinal)
             except ValueError:
-                raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+                raise InterpretException("INT2CHARS: Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
             self.processor.pushToStack((char, 'string'))
         else:
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("INT2CHARS: Invalid operand types", ReturnCodes.BAD_OPERANDS)
 
 class Stri2intInstruction(Instruction):
     
@@ -447,11 +450,11 @@ class Stri2intInstruction(Instruction):
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         if self.operands[1].getType() == 'string' and self.operands[2].getType() == 'int':
             if index < 0 or index >= len(string):
-                raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+                raise InterpretException("STRI2INT: Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
             ordinal = ord(string[index])
             variable.set(ordinal, 'int')
         else:
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("STRI2INT: Invalid operand types", ReturnCodes.BAD_OPERANDS)
 
 class Stri2intsInstruction(StackInstruction):
     
@@ -464,11 +467,11 @@ class Stri2intsInstruction(StackInstruction):
         
         if stringType == 'string' and indexType == 'int':
             if index < 0 or index >= len(string):
-                raise InterpretException("Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
+                raise InterpretException("STRI2INTS: Invalid operand types", ReturnCodes.INVALID_STRING_OPERATION)
             ordinal = ord(string[index])
             self.processor.pushToStack((ordinal, 'int'))
         else:
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("STRI2INTS: Invalid operand types", ReturnCodes.BAD_OPERANDS)
 
 
 class Int2floatInstruction(Instruction):
@@ -482,9 +485,22 @@ class Int2floatInstruction(Instruction):
             
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         if self.operands[1].getType() != 'int':
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("INT2FLOAT: Invalid operand types", ReturnCodes.BAD_OPERANDS)
             
         variable.set(float(self.operands[1].getValue()), 'float')
+        
+class Int2floatsInstruction(StackInstruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(operands, processor)
+        
+    def execute(self):
+        ordinalVal, ordinalType = self.processor.popFromStack()
+        
+        if ordinalType != 'int':
+            raise InterpretException("INT2FLOATS: Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        
+        self.processor.pushToStack((float(ordinalVal), 'float'))
 
 class Float2intInstruction(Instruction):
     
@@ -497,9 +513,22 @@ class Float2intInstruction(Instruction):
             
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         if self.operands[1].getType() != 'float':
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("FLOAT2INT: Invalid operand types", ReturnCodes.BAD_OPERANDS)
             
         variable.set(int(self.operands[1].getValue()), 'int')
+        
+class Float2intsInstruction(StackInstruction):
+    
+    def __init__(self, operands, processor):
+        super().__init__(operands, processor)
+        
+    def execute(self):
+        ordinalVal, ordinalType = self.processor.popFromStack()
+        
+        if ordinalType != 'float':
+            raise InterpretException("FLOAT2INTS: Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        
+        self.processor.pushToStack((int(ordinalVal), 'int'))
 
 class ArithmeticInstruction(Instruction):
     
@@ -515,8 +544,8 @@ class ArithmeticInstruction(Instruction):
         if type1 == 'float' and type2 == 'float':
             return
         if type1 == None or type2 == None:
-            raise InterpretException("Missing value in operand", ReturnCodes.MISSING_VALUE)
-        raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("ARITHMETIC: Missing value in operand", ReturnCodes.MISSING_VALUE)
+        raise InterpretException("ARITHMETIC: Invalid operand types", ReturnCodes.BAD_OPERANDS)
 
 class AddInstruction(ArithmeticInstruction):
     
@@ -566,10 +595,10 @@ class IdivInstruction(ArithmeticInstruction):
         val1 = self.operands[1].getValue()
         val2 = self.operands[2].getValue()
         if val2 == 0:
-            raise InterpretException("Cannot divide by 0", ReturnCodes.BAD_OPERAND_VALUE)
+            raise InterpretException("IDIV: Cannot divide by 0", ReturnCodes.BAD_OPERAND_VALUE)
         
         if self.operands[1].getType() != 'int' or self.operands[2].getType() != 'int':
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("IDIV: Invalid operand types", ReturnCodes.BAD_OPERANDS)
             
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         variable.set(val1 // val2, 'int')    
@@ -584,10 +613,10 @@ class DivInstruction(ArithmeticInstruction):
         val1 = self.operands[1].getValue()
         val2 = self.operands[2].getValue()
         if val2 == 0:
-            raise InterpretException("Cannot divide by 0", ReturnCodes.BAD_OPERAND_VALUE)
+            raise InterpretException("DIV: Cannot divide by 0", ReturnCodes.BAD_OPERAND_VALUE)
             
         if self.operands[1].getType() != 'float' or self.operands[2].getType() != 'float':
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("DIV: Invalid operand types", ReturnCodes.BAD_OPERANDS)
             
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         variable.set(val1 / val2, 'float')    
@@ -625,12 +654,12 @@ class RelationalInstruction(Instruction):
         type2 = self.operands[2].getType()
         
         if type1 == None or type2 == None:
-            raise InterpretException("Missing value in operand", ReturnCodes.MISSING_VALUE)
+            raise InterpretException("Relational inst: Missing value in operand", ReturnCodes.MISSING_VALUE)
         if type1 == 'nil' or type2 == 'nil':
             return
         if type1 == type2:
             return
-        raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+        raise InterpretException("Relational inst: Invalid operand types", ReturnCodes.BAD_OPERANDS)
     
 class LtInstruction(RelationalInstruction):
     
@@ -643,7 +672,7 @@ class LtInstruction(RelationalInstruction):
         value2 = self.operands[2].getValue()
         
         if self.operands[1].getType() == 'nil' or self.operands[2].getType() == 'nil':
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("LT: Invalid operand types", ReturnCodes.BAD_OPERANDS)
         
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         variable.set(value1 < value2, 'bool')
@@ -659,7 +688,7 @@ class GtInstruction(RelationalInstruction):
         value2 = self.operands[2].getValue()
         
         if self.operands[1].getType() == 'nil' or self.operands[2].getType() == 'nil':
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("GT: Invalid operand types", ReturnCodes.BAD_OPERANDS)
             
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         variable.set(value1 > value2, 'bool')
@@ -687,7 +716,7 @@ class AndInstruction(Instruction):
         value2 = self.operands[2].getValue()
         
         if self.operands[1].getType() != 'bool' or self.operands[2].getType() != 'bool':
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("AND: Invalid operand types", ReturnCodes.BAD_OPERANDS)
             
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         variable.set(value1 and value2, 'bool')
@@ -703,7 +732,7 @@ class OrInstruction(Instruction):
         value2 = self.operands[2].getValue()
         
         if self.operands[1].getType() != 'bool' or self.operands[2].getType() != 'bool':
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("OR: Invalid operand types", ReturnCodes.BAD_OPERANDS)
             
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         variable.set(value1 or value2, 'bool')
@@ -718,7 +747,7 @@ class NotInstruction(Instruction):
         value1 = self.operands[1].getValue()
         
         if self.operands[1].getType() != 'bool':
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("NOT: Invalid operand types", ReturnCodes.BAD_OPERANDS)
         
         variable = self.processor.frameModel.getVariable(self.operands[0].getFrameName())
         variable.set(not value1, 'bool')
@@ -743,7 +772,7 @@ class DprintInstruction(Instruction):
         elif type == 'int' or type == 'string':
             print(value, file=sys.stderr)
         else:
-            raise InterpretException("Invalid argument type", ReturnCodes.INVALID_INPUT)
+            raise InterpretException("DPRINT: Invalid argument type", ReturnCodes.INVALID_INPUT)
 
 class BreakInstruction(Instruction):
     
@@ -773,7 +802,7 @@ class AddsInstruction(StackInstruction):
         val1, type1 = self.processor.popFromStack()
         
         if (type1 != type2 or (type1 != 'int' and type2 != 'float')):
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("ADDS: Invalid operand types", ReturnCodes.BAD_OPERANDS)
         
         self.processor.pushToStack((val1 + val2, type1))
         
@@ -787,7 +816,7 @@ class SubsInstruction(StackInstruction):
         val1, type1 = self.processor.popFromStack()
         
         if (type1 != type2 or (type1 != 'int' and type2 != 'float')):
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("SUBS: Invalid operand types", ReturnCodes.BAD_OPERANDS)
         
         self.processor.pushToStack((val1 - val2, type1))
          
@@ -801,7 +830,7 @@ class MulsInstruction(StackInstruction):
         val1, type1 = self.processor.popFromStack()
         
         if (type1 != type2 or (type1 != 'int' and type2 != 'float')):
-            raise InterpretException("Invalid operand types", ReturnCodes.BAD_OPERANDS)
+            raise InterpretException("MULS: Invalid operand types", ReturnCodes.BAD_OPERANDS)
         
         self.processor.pushToStack((val1 * val2, type1))
 
@@ -814,10 +843,10 @@ class IdivsInstruction(BinaryStackInstruction):
     def execute(self):
         super().execute()
         
-class DivsInstruction(StackInstruction):
+class DivsInstruction(BinaryStackInstruction):
    
     def __init__(self, operands, processor):
-        operation = (operator.div, ['float'], 'float')
+        operation = (operator.truediv, ['float'], 'float')
         super().__init__(operands, processor, operation)
         
     def execute(self):
@@ -863,7 +892,7 @@ class EqsInstruction(BinaryStackInstruction):
    
     def __init__(self, operands, processor):
         operation = (operator.eq, ['int', 'bool', 'float', 'string', 'nil'], 'bool')
-        super().__init__(operands, processor, operation)
+        super().__init__(operands, processor, operation, allowNils = True)
         
     def execute(self):
         super().execute()

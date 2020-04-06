@@ -5,7 +5,7 @@ Created on Sat Feb 22 16:50:35 2020
 
 IPP project, an interpret of IPPcode20.
 """
-import sys
+import sys, traceback
 import argparse
 from interpret import *
 
@@ -94,6 +94,7 @@ try:
         
 except InterpretException as ex:
     print(ex.args[0], file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
     exit(ex.args[1])
 # except Exception as ex:
 #     print(ex.args[0], file=sys.stderr)
