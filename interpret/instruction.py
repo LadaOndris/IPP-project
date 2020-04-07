@@ -1,6 +1,10 @@
 
 from .return_codes import *
 
+"""
+The Instruction class represents a single instruction of the program.
+It holds its opcode, arguments and execution order.
+"""
 class Instruction:
     
     def __init__(self, opcode, arguments, order):

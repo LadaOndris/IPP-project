@@ -1,3 +1,14 @@
+"""
+This file contains all instructions which can be executed by processor.
+All instructions inherit from Instruction class and implement an execute method.
+Running instructions is designed as a Command design pattern.
+To add new instruction, just add the new Instruction class with 
+apropriate name and no further action is needed.
+
+There is more complex hierarchy of instruction classes to avoid code duplication.
+
+These instructions are executed by processor at the bottom of this file.
+"""
 
 from .operand import *
 from .return_codes import *
@@ -905,7 +916,10 @@ class NotsInstruction(UnaryStackInstruction):
         
     def execute(self):
         super().execute()
-        
+       
+"""
+The processor executes all instructions.
+"""
 class Processor:
     
     def __init__(self, frameModel, operandFactory, instructionCounter, inputFile):
@@ -916,6 +930,10 @@ class Processor:
         self.stopCode = None
         self.__dataStack = []
         
+    """
+    Execute all instructions.
+    rawInstructions is a list of Instruction
+    """
     def execute(self, rawInstructions):
         self.__createInstructions(rawInstructions)
         self.instructionCounter.setInstructions(self.instructions)
@@ -923,13 +941,21 @@ class Processor:
         while self.instructionCounter.nextInstruction() and self.stopCode == None:
             self.instructionCounter.executeCurrentInstruction()
             self.frameModel.updateMaximumVariables()
-        
+    
+    """
+    Create an instance of appropriate Instruction class 
+    for every instruction.
+    """
     def __createInstructions(self, rawInstructions):
         self.instructions = []
         for rawInstr in rawInstructions: 
             instruction = self.__createInstruction(rawInstr.opcode, rawInstr.arguments)
             self.instructions.append(instruction)
         
+    """
+    Create an instancen of appropriate Instruction class
+    and return it.
+    """
     def __createInstruction(self, opcode, rawOperands):
         operands = self.__createOperands(rawOperands)
         className = opcode.capitalize() + "Instruction"
@@ -938,28 +964,47 @@ class Processor:
             return eval(className)(operands, self)
         except NameError:
             raise InterpretException(F"Unknown opcode {opcode}", ReturnCodes.INVALID_INPUT)
-    
+
+    """
+    Create an instance of appropriate Argument class 
+    for every operand.
+    """
     def __createOperands(self, rawOperands):
         operands = []
         for rawOperand in rawOperands:
             operand = self.__operandFactory.create(rawOperand)
             operands.append(operand)
         return operands
-            
+        
+    """
+    Instruction for the processor to stop with the specified code.
+    """
     def stop(self, code):
         self.stopCode = code;
-        
+    
+    """
+    Appends a variable to the data stack.
+    """
     def pushToStack(self, valueType):
         self.__dataStack.append(valueType)
     
+    """
+    Pops a variable from the data stack.
+    """
     def popFromStack(self):
         if len(self.__dataStack) == 0:
             raise InterpretException('Empty data stack', ReturnCodes.MISSING_VALUE)
         return self.__dataStack.pop()
 
+    """
+    Clears the data stack.
+    """
     def clearStack(self):
         self.__dataStack = []
 
+    """
+    Returns an input file.
+    """
     def getInputFile(self):
         return self.__inputFile
  

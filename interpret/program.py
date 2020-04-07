@@ -7,11 +7,24 @@ import re
 import collections
 import sys
 
+"""
+The Program class represents given program.
+It loads and parses an xml file.
+After parsing the file, all instructions of the program are available.
+"""
 class Program:
     
+    """
+    inputFile is an xml file representing the program to be loaded
+    """
     def __init__(self, inputFile):
         self.__parseInput(inputFile)
         
+    """
+    Loads the current program from given xml file.
+    
+    inputFile is an xml file
+    """
     def __parseInput(self, inputFile):
         try:
             root = et.parse(inputFile).getroot()
@@ -25,7 +38,11 @@ class Program:
         except:
             raise InterpretException('Bad xml input', ReturnCodes.INVALID_INPUT)
             
-        
+    
+    """
+    Parses instructrions and its attributes of the program.
+    root is the root element of the xml
+    """
     def __parseInstructions(self, root):
         self.instructions = []
         for attrName in root.attrib:
@@ -45,7 +62,12 @@ class Program:
             instr = Instruction(opcode, arguments, order)
             self.instructions.append(instr)
         self.instructions.sort()
-        
+     
+    """
+    Parses arguments for the given instruction element.
+    Returns all arguments of the instruction.
+    instructionElement is an xml element representing instruction
+    """
     def __parseArguments(self, instructionElement):
         arguments = {}
         for argElement in instructionElement:
@@ -64,7 +86,12 @@ class Program:
             if key != F"arg{index + 1}":
                 raise InterpretException('Missing argument', ReturnCodes.INVALID_INPUT)
             yield value
-    
+            
+    """
+    Creates a new instance of the Argument class.
+    If the type of the argument is nil or None, the value of the argument
+    is changed to an empty string.
+    """
     def __parseArgument(self, argElement):
         type = argElement.attrib["type"]
         value = argElement.text
@@ -74,5 +101,8 @@ class Program:
             value = ""
         return Argument(type, value)
     
+    """
+    Returns all instructions.
+    """
     def getInstructions(self):
         return self.instructions

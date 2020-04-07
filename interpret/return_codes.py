@@ -16,6 +16,11 @@ class ReturnCodes:
     INTERNAL_ERROR = 99
     
 
+"""
+InterpretException is an exception that can raise from 
+anywhere of the interpret.
+Further information is stored withing message and code.
+"""
 class InterpretException(Exception):
     
     def __init__(self, message, code):
