@@ -36,6 +36,7 @@ Rámce jsou implementovány datovými strukturami slovník. Práce s rámcem je 
  
 Zásobník volání je implementován obyčejným polem, s kterým je pracováno jako se zásobníkem.
 Ukazatel na aktuální instrukci je ve tříde `InstructionCounter` spolu se zásobníkem volání.
+Seznam instrukcí je vnitřně reprezentován polem, se kterým pracuje `InstructionCounter`.
 
 K vytváření instancí tříd instrukcí je použita funkce jazyka python `exec`.
 Každé instanci instrukce jsou předány operandy, které jsou nejprve vytvořeny třídou `OperandFactory`, která zpracuje hodnoty operandů ze vstupního xml a vytvoří odpovídající instance tříd operandů, například `ConstantOperand`, `SymbolOperand`, `LabelOperand`.
