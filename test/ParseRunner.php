@@ -31,7 +31,7 @@ class ParseRunner {
         $srcFilename =  $this->testCase->getSourceFilename();
         $actualOutputFilename = $this->testCase->getActualOutputFilename();
 
-        return "php \"{$this->parseScript}\" < \"{$srcFilename}\" > \"{$actualOutputFilename}\" ";
+        return "php7.4 \"{$this->parseScript}\" < \"{$srcFilename}\" > \"{$actualOutputFilename}\" ";
     }
 
     private function checkReturnCode() {
