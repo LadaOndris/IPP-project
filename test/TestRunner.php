@@ -84,7 +84,9 @@ class TestRunner implements ITestRunner
             unlink($interpretOutputFilename);
             return new TestCaseResult($testCase, $hasPassed);
         }
-        return new TestCaseResult($testCase, False);
+        else {
+            return new TestCaseResult($testCase, $this->parseRunner->hasPassed);
+        }
     }
 }
 

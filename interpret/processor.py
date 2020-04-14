@@ -245,6 +245,8 @@ class JumpifeqInstruction(Instruction):
         
         op1type = self.operands[1].getType()
         op2type = self.operands[2].getType()
+        
+        self.processor.checkLabelExists(label)
         if op1type != op2type and op1type != 'nil' and op2type != 'nil':
             raise InterpretException('JUMPIFEQ: Types differ', ReturnCodes.BAD_OPERANDS)
         if val1 == val2:
@@ -261,6 +263,7 @@ class JumpifeqsInstruction(Instruction):
         val1, type1 =  self.processor.popFromStack()
         label = self.operands[0].getValue()
         
+        self.processor.checkLabelExists(label)
         if type1 != type2 and type1 != 'nil' and type2 != 'nil':
             raise InterpretException('JUMPIFEQS: Types differ', ReturnCodes.BAD_OPERANDS)
         if val1 == val2:
@@ -280,6 +283,7 @@ class JumpifneqInstruction(Instruction):
         op1type = self.operands[1].getType()
         op2type = self.operands[2].getType()
         
+        self.processor.checkLabelExists(label)
         if op1type != op2type and op1type != 'nil' and op2type != 'nil':
             raise InterpretException('JUMPIFNEQ: Types differ', ReturnCodes.BAD_OPERANDS)
         
@@ -297,6 +301,7 @@ class JumpifneqsInstruction(Instruction):
         val1, type1 =  self.processor.popFromStack()
         label = self.operands[0].getValue()
         
+        self.processor.checkLabelExists(label)
         if type1 != type2 and type1 != 'nil' and type2 != 'nil':
             raise InterpretException('JUMPIFNEQS: Types differ', ReturnCodes.BAD_OPERANDS)
         if val1 != val2:
@@ -1007,6 +1012,10 @@ class Processor:
     """
     def getInputFile(self):
         return self.__inputFile
+    
+    def checkLabelExists(self, label):
+        if not self.instructionCounter.existsLabel(label):
+            raise InterpretException('Undefined label', ReturnCodes.SEMANTIC_ERROR)
  
         
     

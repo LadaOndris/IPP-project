@@ -9,6 +9,9 @@ require_once("test/HtmlSummaryGenerator.php");
 require_once("test/TestSuiteReader.php");
 require_once("test/ArgsParser.php");
 
+/**
+ * Definition of error codes for possible errors.
+ */
 class Errors
 {
     const INVALID_COMBINATION_OF_PARAMS = 10;
@@ -22,18 +25,21 @@ class Errors
  */
 class TestCaseResult
 {
-    private $testCase;
-    private $hasPassed;
-
     public function __construct(TestCase $testCase, $hasPassed) {
         $this->testCase = $testCase;
         $this->hasPassed = $hasPassed;
     }
 
+    /**
+     * Returns true if TestCase passed.
+     */
     public function hasPassed() {
         return $this->hasPassed;
     }
 
+    /**
+     * Returns a TestCase of this TestCaseResult.
+     */
     public function getTestCase() {
         return $this->testCase;
     }
@@ -44,14 +50,18 @@ class TestCaseResult
  */
 class TestSuiteResult
 {
-    private $testCaseResults;
-    private $testSuite;
-
+    /**
+     * testSuite The target TestSuite
+     * testCaseResult An array of instances of TestCaseResult class.
+     */
     public function __construct(TestSuite $testSuite, $testCaseResults) {
         $this->testSuite = $testSuite;
         $this->testCaseResults = $testCaseResults;
     }
 
+    /**
+     * Returns the total number of passed test cases.
+     */
     public function getTotalPassed() {
         $totalPassed = 0;
         foreach ($this->testCaseResults as $testCaseResult) {
@@ -62,14 +72,24 @@ class TestSuiteResult
         return $totalPassed;
     }
 
+    
+    /**
+     * Returns the total number of failed test cases.
+     */
     public function getTotalFailed() {
         return count($this->testCaseResults) - $this->getTotalPassed();
     }
 
+    /**
+     * Returns the test suite.
+     */
     public function getTestSuite() {
         return $this->testSuite;
     }
 
+    /**
+     * Returns a TestCaseResult for each test in a TestSuite of this TestSuiteResult.
+     */
     public function getTestCaseResults() {
         return $this->testCaseResults;
     }
@@ -88,10 +108,19 @@ class TestSuite
         $this->directory = $directory;
         $this->testCases = $testCases;
     }
+    
+    /** 
+     * Returns a directory of the test suite.
+     * The test suite contains test from this directory.
+     */
     public function getDirectory() {
         return $this->directory;
     }
 
+    /**
+     * Returns test cases.
+     * These test cases are all located in a single directory.
+     */
     public function getTestCases() {
         return $this->testCases;
     }
@@ -107,13 +136,19 @@ interface ITestRunner
  */
 class FilenameFilter extends FilterIterator 
 {
-    private $regex;
-
+    /**
+     * it Base iterator
+     * regex Regex to filter file names
+     */
     public function __construct(Iterator $it, $regex) {
         $this->regex = $regex;
         parent::__construct($it);
     }
 
+    /**
+     * Overriden function of FilterIterator.
+     * Accepts files which satisfy given regex.
+     */
     public function accept() {
         return $this->isFile() && preg_match($this->regex, $this->getFilename());
     }
@@ -130,7 +165,8 @@ function printHelp() {
     echo "--int-only                    Run interpret only.\n";
     echo "--parse-only                  Run parse script only.\n";
     echo "--jexamxml PATH               Set path to jexamxml.jar script for xml comparison, default is /pub/courses/ipp/jexamxml/jexamxml.jar.\n";
-    echo "--match REGEX                 Regex to filter test names without extension and path.";
+    echo "--match REGEX                 Regex to filter test names without extension and path.\n";
+    echo "--testlist PATH               Set path to a file containing list of directories and files to test.\n";
 }
 
 try {
@@ -147,19 +183,26 @@ try {
     $outputDiffRunner = new DiffRunner($args->verbose);
     $testRunner = new TestRunner($parseRunner, $args->parseOnly, $interpretRunner, $args->intOnly, 
                                  $xmlDiffRunner, $outputDiffRunner, $args->verbose);
-    $testSuiteReader = new DirectoryTestSuiteReader($args->directory, $args->recursive, $args->match);
+    $testSuiteReader = new DirectoryTestSuiteReader();
     $testSuiteReader = new PreprocessTestSuiteReader($testSuiteReader);
+    $testfileTestSuiteReader = new TestfileTestSuiteReader($testSuiteReader);
     $summaryGenerator = new HtmlSummaryGenerator();
 
     /**
-     * Starts the whole test thing using the object graph built.
+     * Starts the whole test thing using the object graph that was built above.
      */
     if ($args->help) {
         printHelp();
     }
     else {
-        $testSuites = $testSuiteReader->read();
-
+        /** Testlist is given */
+        if (isset($args->testlist)) {
+            $testlistfile = file($args->testlist);
+            $testSuites = $testfileTestSuiteReader->read($testlistfile, $args->recursive, $args->match);
+        }
+        else { /** Directory is given */
+            $testSuites = $testSuiteReader->read($args->directory, $args->recursive, $args->match);
+        }
         $testSuiteResults = array();
         foreach ($testSuites as $testSuite) {
             $testSuiteResult = $testRunner->runTestSuite($testSuite);

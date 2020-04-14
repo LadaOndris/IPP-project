@@ -55,10 +55,10 @@ class Program:
             arguments = self.__parseArguments(child)
             opcode = child.attrib['opcode']
             order = int(child.attrib['order'])
-            if order < 0:
+            if order <= 0:
                 raise InterpretException('Negative order', ReturnCodes.INVALID_INPUT)
-            if len(child.attrib) > 2:
-                raise InterpretException('Negative order', ReturnCodes.INVALID_INPUT)
+            #if len(child.attrib) > 2:
+            #    raise InterpretException('Unsupported argument', ReturnCodes.INVALID_INPUT)
             instr = Instruction(opcode, arguments, order)
             self.instructions.append(instr)
         self.instructions.sort()

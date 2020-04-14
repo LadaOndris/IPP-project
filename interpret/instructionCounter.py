@@ -89,4 +89,10 @@ class InstructionCounter:
         if not label in self.labels:
             raise InterpretException('Label doesnt exist', ReturnCodes.SEMANTIC_ERROR)
         self.__counter = self.labels[label] 
+        
+    """
+    Returns true if the given label exists, otherwise returns false.
+    """
+    def existsLabel(self, label):
+        return label in self.labels
     

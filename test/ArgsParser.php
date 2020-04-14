@@ -1,5 +1,8 @@
 <?php
 
+/**
+ * ArgsParser parses the arguments for parse.php.
+ */
 class ArgsParser
 {
     private $argv;
@@ -8,10 +11,17 @@ class ArgsParser
         $this->argv = $argv;
     }
 
+    /**
+     * Parses arguments of the parse.php script and returns an Args object containing
+     * the arguments or their default values.
+     */
     public function parse() {
         $args = new Args();
         $isIntOnlySet = $isParseOnlySet = false;
         $isIntScriptSet = $isParseScriptSet = false;
+        $isTestlistSet = false;
+        $isDirectorySet = false;
+
 
         for ($i = 1; $i < count($this->argv); $i++) {
             switch ($this->argv[$i]) {
@@ -25,6 +35,7 @@ class ArgsParser
                     if ($this->isValueArgument("directory", $arg)) {
                         $args->directory = $this->parseValueArgument($arg);
                         $this->checkDirectoryExists($args->directory, "--directory");
+                        $isDirectorySet = true;
                     }
                     else if ($this->isValueArgument("parse-script", $arg)) {
                         $args->parseScript = $this->parseValueArgument($arg);
@@ -43,11 +54,19 @@ class ArgsParser
                     else if ($this->isValueArgument("match", $arg)) {
                         $args->match = $this->parseValueArgument($arg);
                     }
+                    else if ($this->isValueArgument("testlist", $arg)) {
+                        $args->testlist = $this->parseValueArgument($arg);
+                        $this->checkFileExists($args->testlist, "--testlist");
+                        $isTestlistSet = true;
+                    }
                     else {
                         throw new Exception("Invalid argument: " . $arg, Errors::INVALID_ARGUMENT);
                     }
                 }
             }
+        }
+        if ($isDirectorySet && $isTestlistSet) {
+            throw new Exception("Parameter --directory cannot be combined with --testlist.", Errors::INVALID_COMBINATION_OF_PARAMS);
         }
         if ($isIntOnlySet && ($isParseOnlySet || $isParseScriptSet)) {
             throw new Exception("Parameter --int-only cannot be combined with --parse-only.", Errors::INVALID_COMBINATION_OF_PARAMS);
@@ -77,7 +96,7 @@ class ArgsParser
 
     private function checkFileExists($file, $optionName) {
         if (!$this->fileExists($file))
-            throw new Exception("Option {$optionName} is invalid. '{$file}' is not a file.", Errors::INVALID_ARGUMENT);
+            throw new Exception("Option {$optionName} is invalid. '{$file}' is not a file.", Errors::OPEN_INPUT_FILE_ERROR);
     }
 
     private function checkDirectoryExists($dir, $optionName) {
@@ -102,6 +121,9 @@ class ArgsParser
     }
 }
 
+/**
+ * Arguments of the parse.php script.
+ */
 class Args
 {
     public $help = false;
@@ -114,7 +136,7 @@ class Args
     public $intOnly = false;
     public $jexamxml = "/pub/courses/ipp/jexamxml/jexamxml.jar";
     public $match = ".*";
+    public $testlist;
 }
-
 
 ?>

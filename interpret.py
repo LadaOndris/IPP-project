@@ -132,7 +132,7 @@ try:
         
 except InterpretException as ex:
     print(ex.args[0], file=sys.stderr)
-    traceback.print_exc(file=sys.stderr)
+    #traceback.print_exc(file=sys.stderr) # uncomment to show the stacktrace
     exit(ex.args[1])
 except Exception as ex:
     print(ex.args[0], file=sys.stderr)

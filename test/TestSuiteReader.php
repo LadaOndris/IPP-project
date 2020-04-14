@@ -2,23 +2,82 @@
 
 interface ITestSuiteReader
 {
-    public function read(); // returns a set of testsuites
+    public function read($directory, $regex, $recursively); // returns a set of testsuites
 }
 
 
-class DirectoryTestSuiteReader implements ITestSuiteReader
+class TestfileTestSuiteReader implements ITestSuiteReader
 {
-    private $directory;
-    private $recursively;
-    private $regex = ".*";
+    private $directorySuiteReader;
+    private $testSuites = array();
 
-    public function __construct($directory, $recursively, $regex) {
-        $this->directory = $directory;
-        $this->recursively = $recursively;
-        $this->regex = $regex;
+    public function __construct($directorySuiteReader) {
+        $this->directorySuiteReader = $directorySuiteReader;
     }
 
-    public function read() {
+    public function read($testfile, $recursively, $regex) {
+        $this->testfile = $testfile;
+        $this->regex = $regex;
+
+        $this->loadFile();
+        foreach ($this->directories as $directory) {
+            $testSuites = $this->directorySuiteReader->read($directory, $recursively, $regex);
+            $this->appendTestSuites($testSuites);
+        }
+        foreach ($this->files as $file) {
+            $dirname = dirname($file);
+            $filenameWithoutExtension = basename($file, ".src");
+            $testSuites = $this->directorySuiteReader->read($dirname, false, $filenameWithoutExtension);
+            $this->appendTestSuites($testSuites);
+        }
+        return $this->testSuites;
+    }
+
+    private function loadFile() {
+        $this->directories = array();
+        $this->files = array();
+
+        foreach ($this->testfile as $line) {
+            $line = trim($line);
+            if ($line == '') // ignore empty lines
+                continue;
+            $pathParts = pathinfo($line);
+            
+            if ($this->directoryExists($line)) {
+                array_push($this->directories, $line);
+            }
+            else if ($this->fileExists($line) && strtolower($pathParts['extension']) == 'src') {
+                array_push($this->files, $line);
+            }
+            else {
+                throw new Exception("Bad file or directory: " . $line, Errors::OPEN_INPUT_FILE_ERROR);
+            }
+        }
+    }
+
+    private function fileExists($file) {
+        return file_exists($file) and !is_dir($file);
+    }
+
+    private function directoryExists($directory) {
+        return file_exists($directory) and is_dir($directory);
+    }
+
+    private function appendTestSuites($testSuites) {
+        foreach ($testSuites as $testSuite) {
+            array_push($this->testSuites, $testSuite);
+        }
+    }
+}
+
+class DirectoryTestSuiteReader implements ITestSuiteReader
+{
+    public function read($directory, $recursively, $regex) {
+        $directory = rtrim($directory, "/\\"); // remove ending slash and backslash
+        $this->directory = $directory;
+        $this->regex = $regex;
+        $this->recursively = $recursively;
+        
         $testSuites = array();
         $dirs = array();
         if ($this->recursively) {
@@ -73,15 +132,16 @@ class PreprocessTestSuiteReader implements ITestSuiteReader
         $this->testSuiteReader = $reader;
     }
 
-    public function read() {
-        $testSuites = $this->testSuiteReader->read();
+    public function read($directory, $recursively, $regex) {
+        $testSuites = $this->testSuiteReader->read($directory, $recursively, $regex);
 
         foreach ($testSuites as $testSuite) {
             $dir = $testSuite->getDirectory();
+            $dir = rtrim($dir, "/\\"); // remove ending slash and backslash
 
             foreach ($testSuite->getTestCases() as $testCase) {
                 // create empty in and out files if they don't exist
-                $testCasePath = $dir."/".$testCase->getName();
+                $testCasePath = $dir.DIRECTORY_SEPARATOR.$testCase->getName();
                 $inFilePath = $testCasePath . ".in";
                 $outFilePath = $testCasePath . ".out";
                 $rcFilePath = $testCasePath . ".rc";
