@@ -8,13 +8,13 @@ Login: xondri07
 
 Byl především kladen důraz na objektový návrh.
 
-Hlavním prostředkem k dosažení dobrého návrhu bylo **Dependency Injection** (DI). V tomto případě jsem použil klasické Pure DI bez kontejnerů. Kontejner není potřebný pro projekt takto malého rozsahu. **OOP** je pro DI samozřejmostí.
+Hlavním prostředkem k dosažení dobrého návrhu bylo **Dependency Injection** (DI). V tomto případě bylo použito klasického **Pure DI** bez kontejnerů. Kontejner není potřebný pro projekt takto malého rozsahu. **OOP** je pro DI samozřejmostí.
 
-Vstupním bodem DI je na konci souboru `test.php`. V případě interpretu je to v souboru `interpret.py.  Nejprve se vytvoří všechny objekty, s kterými se bude pracovat - vytvoří se takzvaný Object Graph. Poté se s tímto grafem začne pracovat.
+Vstupním bodem DI je na konci souboru `test.php`. V případě interpretu je to v souboru `interpret.py`.  Nejprve se vytvoří všechny objekty, s kterými se bude pracovat - vytvoří se takzvaný Object Graph. Poté se s tímto grafem začne pracovat.
 
 ### Systém řešení chybových stavů
 
-V obou skriptech je vracení chybových kódů řešeno pomocí **výjimek**. Vyhodí se výjimka obsahující zprávu a chybový kód. Na nejvyšší úrovni programu je konstrukce try catch, která odchytává výjimky. Pokud nastane výjimka, ta se odchytí, vypíše se zpráva výjimky a ukončí se program s návratovým kódem z výjimky. V `parser.php` je použita obecná výjimka Exception pro jednoduchost a v `interpret.py` je použit vlastní typ `InterpretException`. 
+V obou skriptech je vracení chybových kódů řešeno pomocí **výjimek**. Vyhodí se výjimka obsahující zprávu a chybový kód. Na nejvyšší úrovni programu je konstrukce try catch, která odchytává výjimky. Pokud nastane výjimka, tak se odchytí, vypíše se zpráva výjimky a ukončí se program s návratovým kódem z výjimky. V `parser.php` je pro jednoduchost použita obecná výjimka typu Exception a v `interpret.py` je použit vlastní typ výjimky `InterpretException` dědící z `Exception`. 
 
 ## test
 
@@ -32,13 +32,13 @@ Vykonávání instrukcí je řešeno návrhovým vzorem **Command**, pričemž k
 
 ### Implementační detaily
 
-Rámce jsou implementovány datovými strukturami slovník. Práce s rámcem je obalena třídou `Frame`. Lokální rámce jsou uloženy v poli instancí třídy `Frame`. Všechny rámce spravuje třída 'FrameModel'. 
+Rámce jsou implementovány datovými strukturami slovník. Práce s rámcem je obalena třídou `Frame`. Lokální rámce jsou uloženy v poli instancí třídy `Frame`. Všechny rámce spravuje třída `FrameModel`. 
  
 Zásobník volání je implementován obyčejným polem, s kterým je pracováno jako se zásobníkem.
 Ukazatel na aktuální instrukci je ve tříde `InstructionCounter` spolu se zásobníkem volání.
 
 K vytváření instancí tříd instrukcí je použita funkce jazyka python `exec`.
-Každá instanci instrukce jsou předány operandy, které jsou nejprve vytvořeny třídou `OperandFactory`, která zpracuje operandy každé instrukce a vytvoří odpovídající instance tříd operandů, například `ConstantOperand`, `SymbolOperand`.
+Každé instanci instrukce jsou předány operandy, které jsou nejprve vytvořeny třídou `OperandFactory`, která zpracuje hodnoty operandů ze vstupního xml a vytvoří odpovídající instance tříd operandů, například `ConstantOperand`, `SymbolOperand`, `LabelOperand`.
 
 
 
